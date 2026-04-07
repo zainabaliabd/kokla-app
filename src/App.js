@@ -1,4 +1,3 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
 
 const DEFAULT_CATEGORIES = [
   { key: "ميداليات", icon: "🏅" },
