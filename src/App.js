@@ -1,3 +1,5 @@
+ /* eslint-disable no-unused-vars */
+import React, { useState, useEffect, useRef } from "react";
 
 const DEFAULT_CATEGORIES = [
   { key: "ميداليات", icon: "🏅" },
