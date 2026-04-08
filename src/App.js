@@ -48,7 +48,6 @@ function getMonth(d) {
 }
 const MONTH_AR=["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
 function monthLabel(ym) { if(!ym) return ""; const[y,m]=ym.split("-"); return `${MONTH_AR[parseInt(m)-1]} ${y}`; }
-function fileToBase64(file) { return new Promise(r=>{const rd=new FileReader();rd.onload=e=>r(e.target.result);rd.readAsDataURL(file);}); }
 
 /* ─── App ────────────────────────────────────────────────────────────────────── */
 export default function App() {
