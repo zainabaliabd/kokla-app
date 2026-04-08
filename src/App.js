@@ -122,7 +122,7 @@ export default function App() {
           {key:"session",label:"جلسة عمل",icon:"⏱"},
           {key:"inventory",label:"المخزون",icon:"📦"},
           {key:"bazaars",label:"البازارات",icon:"🛍️"},
-          {key:"sales",label:"المبيعات",icon:"💰"},
+          {key:"sales",label:"المبيعات",icon:""},
           {key:"monthly",label:"إحصائيات",icon:"📅"},
           {key:"settings",label:"الإعدادات",icon:"⚙️"},
         ].map(t => (
