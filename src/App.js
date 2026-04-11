@@ -61,6 +61,7 @@ function monthLabel(ym) {
   if(isNaN(m)||m<1||m>12) return ym;
   return MONTH_AR[m-1]+" "+y;
 }
+// eslint-disable-next-line no-unused-vars
 function fileToBase64(file) { return new Promise(r=>{const rd=new FileReader();rd.onload=e=>r(e.target.result);rd.readAsDataURL(file);}); }
 
 /* ─── App ────────────────────────────────────────────────────────────────────── */
