@@ -44,11 +44,23 @@ function calcPrice(laborMinutes,materialCost,targetProfit,discount,hourlyRate) {
 function getMonth(d) {
   if(!d) return "";
   const p=d.split("/");
-  return p.length===3?`${p[2]}-${p[1].padStart(2,"0")}`:d.substring(0,7);
+  if(p.length===3){
+    // Arabic locale gives DD/MM/YYYY
+    const yr=p[2].length===4?p[2]:p[0];
+    const mo=p[2].length===4?p[1]:p[0];
+    return `${yr}-${mo.padStart(2,"0")}`;
+  }
+  return d.substring(0,7);
 }
 const MONTH_AR=["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
-function monthLabel(ym) { if(!ym) return ""; const[y,m]=ym.split("-"); return `${MONTH_AR[parseInt(m)-1]} ${y}`; }
-// eslint-disable-next-line no-unused-vars
+function monthLabel(ym) {
+  if(!ym||!ym.includes("-")) return ym||"";
+  const parts=ym.split("-");
+  if(parts.length<2) return ym;
+  const y=parts[0], m=parseInt(parts[1]);
+  if(isNaN(m)||m<1||m>12) return ym;
+  return MONTH_AR[m-1]+" "+y;
+}
 function fileToBase64(file) { return new Promise(r=>{const rd=new FileReader();rd.onload=e=>r(e.target.result);rd.readAsDataURL(file);}); }
 
 /* ─── App ────────────────────────────────────────────────────────────────────── */
@@ -297,7 +309,20 @@ function Products({data,update,cur,hr,catIcon}) {
     setForm(ef());setEditId(null);setView("list");
   };
 
-  const addReady=(id,count)=>update(prev=>({...prev,products:prev.products.map(p=>p.id===id?{...p,readyCount:(Number(p.readyCount)||0)+Number(count),status:"مكتمل"}:p)}));
+  const addReady=(id,count)=>update(prev=>{
+    const prod=prev.products.find(p=>p.id===id);
+    const qty=Number(count)||1;
+    let materials=[...prev.materials];
+    if(prod?.materialUsage){
+      prod.materialUsage.forEach(usage=>{
+        const matIdx=materials.findIndex(m=>m.id===usage.materialId);
+        if(matIdx<0) return;
+        const deductAmt=Number(usage.qty||0)*qty;
+        materials=materials.map((m,i)=>i===matIdx?{...m,quantity:Math.max(0,Number(m.quantity)-deductAmt)}:m);
+      });
+    }
+    return {...prev,materials,products:prev.products.map(p=>p.id===id?{...p,readyCount:(Number(p.readyCount)||0)+qty,status:"مكتمل"}:p)};
+  });
   const del=id=>update(prev=>({...prev,products:prev.products.filter(p=>p.id!==id)}));
   const changeStatus=(id,status)=>update(prev=>({...prev,products:prev.products.map(p=>p.id===id?{...p,status}:p)}));
 
@@ -488,16 +513,33 @@ function Session({data,update,cur,hr,catIcon,timerSec,running,paused,setRunning,
   const saveSession=()=>{
     const totalMins=Math.round(timerSec/60);
     const minsPerPc=totalPcs>0?Math.round(totalMins/totalPcs):0;
-    update(prev=>({
-      ...prev,
-      products:prev.products.map(p=>{
-        const sel=activeSession.prods.find(x=>x.id===p.id);
-        if(!sel) return p;
-        const addQty=addToReady.includes(p.id)?Number(sel.qty||1):0;
-        return {...p,readyCount:(Number(p.readyCount)||0)+addQty,status:addQty>0?"مكتمل":p.status};
-      }),
-      sessions:[...(prev.sessions||[]),{id:Date.now().toString(),date:new Date().toLocaleDateString("ar-IQ"),prods:activeSession.prods,totalMins,minsPerPc,totalPcs,note:extraNote}]
-    }));
+    update(prev=>{
+      // Deduct materials from inventory for products marked ready
+      let materials=[...prev.materials];
+      selProds.forEach(sel=>{
+        if(!addToReady.includes(sel.id)) return;
+        const prod=prev.products.find(p=>p.id===sel.id);
+        if(!prod||!prod.materialUsage) return;
+        const qty=Number(sel.qty||1);
+        prod.materialUsage.forEach(usage=>{
+          const matIdx=materials.findIndex(m=>m.id===usage.materialId);
+          if(matIdx<0) return;
+          const deductAmt=Number(usage.qty||0)*qty;
+          materials=materials.map((m,i)=>i===matIdx?{...m,quantity:Math.max(0,Number(m.quantity)-deductAmt)}:m);
+        });
+      });
+      return {
+        ...prev,
+        materials,
+        products:prev.products.map(p=>{
+          const sel=activeSession.prods.find(x=>x.id===p.id);
+          if(!sel) return p;
+          const addQty=addToReady.includes(p.id)?Number(sel.qty||1):0;
+          return {...p,readyCount:(Number(p.readyCount)||0)+addQty,status:addQty>0?"مكتمل":p.status};
+        }),
+        sessions:[...(prev.sessions||[]),{id:Date.now().toString(),date:new Date().toLocaleDateString("ar-IQ"),prods:activeSession.prods,totalMins,minsPerPc,totalPcs,note:extraNote}]
+      };
+    });
     setTimerSec(0);setActiveSession(null);setSelProds([]);setExtraNote("");setAddToReady([]);setStep(1);
   };
 
@@ -727,67 +769,144 @@ function Session({data,update,cur,hr,catIcon,timerSec,running,paused,setRunning,
 /* ─── Inventory ──────────────────────────────────────────────────────────────── */
 function Inventory({data,update,cur}) {
   const [showAdd,setShowAdd]=useState(false);
-  const [form,setForm]=useState({name:"",unit:"غرام",priceUnit:"unit",quantity:0,costPerUnit:0,totalPurchasePrice:0,minAlert:10});
+  const [editMat,setEditMat]=useState(null);
+  const emptyForm=()=>({name:"",unit:"غرام",totalPurchasePrice:0,quantity:0,minAlert:10});
+  const [form,setForm]=useState(emptyForm);
+  const [nameSug,setNameSug]=useState([]);
+
+  // Autocomplete for material name
+  const handleNameChange=(val)=>{
+    setForm(f=>({...f,name:val}));
+    if(val.length>0){
+      const matches=data.materials.filter(m=>m.name.includes(val)||m.name.startsWith(val));
+      setNameSug(matches.slice(0,4));
+    } else setNameSug([]);
+  };
+
+  const selectSug=(m)=>{
+    // Fill form with existing material data for adding more stock
+    setForm({name:m.name,unit:m.unit,totalPurchasePrice:0,quantity:0,minAlert:m.minAlert||10});
+    setNameSug([]);
+  };
 
   const add=()=>{
-    if(!form.name.trim()) return;
-    const cpu=form.priceUnit==="100g"?(Number(form.quantity)>0?Number(form.totalPurchasePrice)/Number(form.quantity):0):Number(form.costPerUnit||0);
+    if(!form.name.trim()||!Number(form.quantity)) return;
+    const tc=Number(form.totalPurchasePrice||0);
+    const qty=Number(form.quantity);
+    // cost per unit = total price / quantity
+    const cpu=qty>0&&tc>0?tc/qty:0;
     const cp100=cpu*100;
-    const tc=form.priceUnit==="100g"?Number(form.totalPurchasePrice):Number(form.quantity)*Number(form.costPerUnit||0);
     const ei=data.materials.findIndex(m=>m.name===form.name.trim());
     update(prev=>{
       let mats;
-      if(ei>=0) mats=prev.materials.map((m,i)=>i===ei?{...m,quantity:Number(m.quantity)+Number(form.quantity),totalCost:(Number(m.totalCost)||0)+tc,costPerUnit:cpu,costPer100:cp100,priceUnit:form.priceUnit}:m);
-      else mats=[...prev.materials,{...form,id:Date.now().toString(),costPerUnit:cpu,costPer100:cp100,totalCost:tc}];
+      if(ei>=0){
+        const existing=prev.materials[ei];
+        const oldTotal=Number(existing.totalCost)||0;
+        const newTotal=oldTotal+tc;
+        const newQty=Number(existing.quantity)+qty;
+        // weighted average cost per unit
+        const newCpu=newQty>0?newTotal/newQty:cpu;
+        mats=prev.materials.map((m,i)=>i===ei?{...m,quantity:newQty,totalCost:newTotal,costPerUnit:newCpu,costPer100:newCpu*100}:m);
+      } else {
+        mats=[...prev.materials,{...form,id:Date.now().toString(),costPerUnit:cpu,costPer100:cp100,totalCost:tc}];
+      }
       return {...prev,materials:mats,purchases:[...prev.purchases,{...form,id:Date.now().toString(),costPerUnit:cpu,totalCost:tc,date:new Date().toLocaleDateString("ar-IQ")}]};
     });
-    setForm({name:"",unit:"غرام",priceUnit:"unit",quantity:0,costPerUnit:0,totalPurchasePrice:0,minAlert:10});
-    setShowAdd(false);
+    setForm(emptyForm());setNameSug([]);setShowAdd(false);
   };
+
+  const saveEdit=()=>{
+    if(!editMat) return;
+    const tc=Number(editMat.totalCost||0);
+    const qty=Number(editMat.quantity||0);
+    const cpu=qty>0&&tc>0?tc/qty:Number(editMat.costPerUnit||0);
+    update(prev=>({...prev,materials:prev.materials.map(m=>m.id===editMat.id?{...editMat,costPerUnit:cpu,costPer100:cpu*100}:m)}));
+    setEditMat(null);
+  };
+
   const deduct=(id,amt)=>update(prev=>({...prev,materials:prev.materials.map(m=>m.id===id?{...m,quantity:Math.max(0,Number(m.quantity)-Number(amt))}:m)}));
+  const delMat=(id)=>update(prev=>({...prev,materials:prev.materials.filter(m=>m.id!==id)}));
 
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
         <h2 style={{color:"#ffb4dc",fontWeight:800}}>المخزون 📦</h2>
-        <button onClick={()=>setShowAdd(!showAdd)} style={Bs("#ff6eb4")}>{showAdd?"← إغلاق":"+ شراء مواد"}</button>
+        <button onClick={()=>{setShowAdd(!showAdd);setEditMat(null);}} style={Bs("#ff6eb4")}>{showAdd?"← إغلاق":"+ شراء مواد"}</button>
       </div>
-      {showAdd&&(
+
+      {/* Add form */}
+      {showAdd&&!editMat&&(
         <div style={{...Cs,marginBottom:12}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            <div style={{gridColumn:"span 2"}}><Lb>اسم المادة</Lb><In value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="مثال: صوف أكريليك"/></div>
-            <div><Lb>الوحدة</Lb><Sl value={form.unit} onChange={e=>setForm(f=>({...f,unit:e.target.value}))}><option>غرام</option><option>كيلو</option><option>متر</option><option>حبة</option><option>لفة</option><option>علبة</option></Sl></div>
-            <div><Lb>الكمية</Lb><In type="number" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:e.target.value}))}/></div>
-            <div style={{gridColumn:"span 2"}}>
-              <Lb>طريقة التسعير</Lb>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                <button onClick={()=>setForm(f=>({...f,priceUnit:"unit"}))} style={{background:form.priceUnit==="unit"?"rgba(255,110,180,0.25)":"rgba(255,255,255,0.06)",border:`1px solid ${form.priceUnit==="unit"?"#ff6eb4":"rgba(255,255,255,0.15)"}`,borderRadius:8,padding:"7px",cursor:"pointer",color:form.priceUnit==="unit"?"#ffb4dc":"#c0a8d0",fontFamily:"inherit",fontSize:11}}>سعر الوحدة<br/><span style={{fontSize:9,opacity:.7}}>سعر كل حبة/غرام</span></button>
-                <button onClick={()=>setForm(f=>({...f,priceUnit:"100g"}))} style={{background:form.priceUnit==="100g"?"rgba(96,165,250,0.25)":"rgba(255,255,255,0.06)",border:`1px solid ${form.priceUnit==="100g"?"#60a5fa":"rgba(255,255,255,0.15)"}`,borderRadius:8,padding:"7px",cursor:"pointer",color:form.priceUnit==="100g"?"#93c5fd":"#c0a8d0",fontFamily:"inherit",fontSize:11}}>السعر الكلي<br/><span style={{fontSize:9,opacity:.7}}>مثال: 500غم بـ6000</span></button>
-              </div>
-            </div>
-            {form.priceUnit==="unit"&&<div style={{gridColumn:"span 2"}}><Lb>سعر الوحدة ({cur})</Lb><In type="number" value={form.costPerUnit} onChange={e=>setForm(f=>({...f,costPerUnit:e.target.value}))}/></div>}
-            {form.priceUnit==="100g"&&(
-              <div style={{gridColumn:"span 2"}}>
-                <Lb>السعر الكلي ({cur})</Lb>
-                <In type="number" value={form.totalPurchasePrice} onChange={e=>setForm(f=>({...f,totalPurchasePrice:e.target.value}))} placeholder="6000"/>
-                {Number(form.quantity)>0&&Number(form.totalPurchasePrice)>0&&<div style={{marginTop:4,fontSize:11,color:"#60a5fa"}}>100{form.unit} = {fmt(Math.round(Number(form.totalPurchasePrice)/Number(form.quantity)*100))} {cur}</div>}
+          <div style={{marginBottom:8,position:"relative"}}>
+            <Lb>اسم المادة</Lb>
+            <In value={form.name} onChange={e=>handleNameChange(e.target.value)} placeholder="مثال: صوف أكريليك"/>
+            {nameSug.length>0&&(
+              <div style={{position:"absolute",top:"100%",right:0,left:0,background:"#1e1040",border:"1px solid rgba(255,180,220,0.3)",borderRadius:8,zIndex:50,overflow:"hidden"}}>
+                {nameSug.map(m=>(
+                  <div key={m.id} onClick={()=>selectSug(m)} style={{padding:"8px 12px",cursor:"pointer",fontSize:12,borderBottom:"1px solid rgba(255,255,255,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{color:"#ffb4dc",fontWeight:600}}>{m.name}</span>
+                    <span style={{color:"rgba(255,255,255,0.45)",fontSize:10}}>{fmt(m.quantity)} {m.unit} متوفر</span>
+                  </div>
+                ))}
               </div>
             )}
-            <div><Lb>تنبيه عند</Lb><In type="number" value={form.minAlert} onChange={e=>setForm(f=>({...f,minAlert:e.target.value}))}/></div>
           </div>
-          <button onClick={add} style={{...Bs("#ff6eb4"),width:"100%",marginTop:10}}>💾 تسجيل</button>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div><Lb>الوحدة</Lb><Sl value={form.unit} onChange={e=>setForm(f=>({...f,unit:e.target.value}))}><option>غرام</option><option>كيلو</option><option>متر</option><option>حبة</option><option>لفة</option><option>علبة</option></Sl></div>
+            <div><Lb>الكمية المشتراة</Lb><In type="number" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:e.target.value}))}/></div>
+            <div style={{gridColumn:"span 2"}}>
+              <Lb>السعر الكلي للكمية ({cur})</Lb>
+              <In type="number" value={form.totalPurchasePrice} onChange={e=>setForm(f=>({...f,totalPurchasePrice:e.target.value}))} placeholder="مثال: 6000"/>
+              {Number(form.quantity)>0&&Number(form.totalPurchasePrice)>0&&(
+                <div style={{marginTop:4,fontSize:11,color:"#60a5fa"}}>
+                  سعر الوحدة: {(Number(form.totalPurchasePrice)/Number(form.quantity)).toFixed(2)} {cur}/{form.unit}
+                  &nbsp;·&nbsp; لكل 100 {form.unit}: {fmt(Math.round(Number(form.totalPurchasePrice)/Number(form.quantity)*100))} {cur}
+                </div>
+              )}
+            </div>
+            <div><Lb>تنبيه عند كمية</Lb><In type="number" value={form.minAlert} onChange={e=>setForm(f=>({...f,minAlert:e.target.value}))}/></div>
+          </div>
+          <button onClick={add} style={{...Bs("#ff6eb4"),width:"100%",marginTop:10}}>💾 تسجيل الشراء</button>
         </div>
       )}
+
+      {/* Edit material */}
+      {editMat&&(
+        <div style={{...Cs,marginBottom:12,border:"1px solid rgba(251,191,36,0.35)"}}>
+          <div style={{color:"#fbbf24",fontWeight:700,marginBottom:10,fontSize:13}}>✏️ تعديل: {editMat.name}</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div style={{gridColumn:"span 2"}}><Lb>اسم المادة</Lb><In value={editMat.name} onChange={e=>setEditMat(m=>({...m,name:e.target.value}))}/></div>
+            <div><Lb>الوحدة</Lb><Sl value={editMat.unit} onChange={e=>setEditMat(m=>({...m,unit:e.target.value}))}><option>غرام</option><option>كيلو</option><option>متر</option><option>حبة</option><option>لفة</option><option>علبة</option></Sl></div>
+            <div><Lb>الكمية الحالية</Lb><In type="number" value={editMat.quantity} onChange={e=>setEditMat(m=>({...m,quantity:e.target.value}))}/></div>
+            <div style={{gridColumn:"span 2"}}><Lb>إجمالي التكلفة ({cur})</Lb><In type="number" value={editMat.totalCost||0} onChange={e=>setEditMat(m=>({...m,totalCost:e.target.value}))}/></div>
+            <div><Lb>تنبيه عند كمية</Lb><In type="number" value={editMat.minAlert||0} onChange={e=>setEditMat(m=>({...m,minAlert:e.target.value}))}/></div>
+          </div>
+          <div style={{display:"flex",gap:8,marginTop:10}}>
+            <button onClick={saveEdit} style={{...Bs("#4ade80"),flex:1,justifyContent:"center"}}>💾 حفظ التعديل</button>
+            <button onClick={()=>setEditMat(null)} style={{...Bs("#f87171"),padding:"7px 14px"}}>✕</button>
+          </div>
+        </div>
+      )}
+
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(155px,1fr))",gap:8}}>
         {data.materials.map(m=>{
           const low=Number(m.quantity)<=Number(m.minAlert);
-          const pl=m.priceUnit==="100g"?`${fmt(Math.round(m.costPer100||0))} ${cur}/100${m.unit}`:`${fmt(m.costPerUnit||0)} ${cur}/${m.unit}`;
+          const cpu=Number(m.costPerUnit||0);
+          const cp100=Number(m.costPer100||cpu*100||0);
           return (
             <div key={m.id} style={{...Cs,border:low?"1px solid rgba(248,113,113,0.4)":undefined}}>
               {low&&<div style={{color:"#f87171",fontSize:10,marginBottom:4}}>⚠️ منخفض</div>}
-              <div style={{fontWeight:700,fontSize:12,marginBottom:2}}>{m.name}</div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:2}}>
+                <div style={{fontWeight:700,fontSize:12}}>{m.name}</div>
+                <div style={{display:"flex",gap:4}}>
+                  <button onClick={()=>{setEditMat({...m});setShowAdd(false);}} style={{background:"none",border:"none",color:"#fbbf24",cursor:"pointer",fontSize:13,padding:0}}>✏️</button>
+                  <button onClick={()=>delMat(m.id)} style={{background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:13,padding:0}}>🗑</button>
+                </div>
+              </div>
               <div style={{fontSize:18,fontWeight:800,color:low?"#f87171":"#4ade80"}}>{fmt(m.quantity)}<span style={{fontSize:10}}> {m.unit}</span></div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:2}}>{pl}</div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:2}}>
+                {cp100>0?`${fmt(Math.round(cp100))} ${cur}/100${m.unit}`:`${fmt(cpu)} ${cur}/${m.unit}`}
+              </div>
               <div style={{display:"flex",gap:4,marginTop:7}}>
                 <input type="number" placeholder="خصم" style={{...Ns,flex:1,fontSize:14,padding:"4px 6px"}} id={`d-${m.id}`}/>
                 <button onClick={()=>{const el=document.getElementById(`d-${m.id}`);deduct(m.id,el.value);el.value="";}} style={{...Bs("#f87171"),padding:"4px 7px",fontSize:11}}>-</button>
@@ -815,21 +934,31 @@ function Inventory({data,update,cur}) {
 /* ─── Bazaars ────────────────────────────────────────────────────────────────── */
 function Bazaars({data,update,cur}) {
   const [showAdd,setShowAdd]=useState(false);
-  const [form,setForm]=useState({name:"",date:"",location:"",tableCost:0,transportCost:0,otherCosts:0,notes:""});
+  const [editBaz,setEditBaz]=useState(null);
+  const emptyForm=()=>({name:"",date:"",location:"",tableCost:0,transportCost:0,otherCosts:0,notes:""});
+  const [form,setForm]=useState(emptyForm);
   const save=()=>{
     if(!form.name.trim()) return;
-    update(prev=>({...prev,bazaars:[...prev.bazaars,{...form,id:Date.now().toString(),totalCost:Number(form.tableCost)+Number(form.transportCost)+Number(form.otherCosts)}]}));
-    setForm({name:"",date:"",location:"",tableCost:0,transportCost:0,otherCosts:0,notes:""});setShowAdd(false);
+    const tc=Number(form.tableCost)+Number(form.transportCost)+Number(form.otherCosts);
+    if(editBaz) {
+      update(prev=>({...prev,bazaars:prev.bazaars.map(b=>b.id===editBaz.id?{...form,id:editBaz.id,totalCost:tc}:b)}));
+      setEditBaz(null);
+    } else {
+      update(prev=>({...prev,bazaars:[...prev.bazaars,{...form,id:Date.now().toString(),totalCost:tc}]}));
+    }
+    setForm(emptyForm());setShowAdd(false);
   };
+  const openEdit=(b)=>{setForm({name:b.name,date:b.date||"",location:b.location||"",tableCost:b.tableCost||0,transportCost:b.transportCost||0,otherCosts:b.otherCosts||0,notes:b.notes||""});setEditBaz(b);setShowAdd(true);};
   const del=id=>update(prev=>({...prev,bazaars:prev.bazaars.filter(b=>b.id!==id)}));
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
         <h2 style={{color:"#ffb4dc",fontWeight:800}}>البازارات 🛍️</h2>
-        <button onClick={()=>setShowAdd(!showAdd)} style={Bs("#ff6eb4")}>{showAdd?"← إغلاق":"+ بازار"}</button>
+        <button onClick={()=>{setShowAdd(!showAdd);setEditBaz(null);setForm(emptyForm());}} style={Bs("#ff6eb4")}>{showAdd?"← إغلاق":"+ بازار"}</button>
       </div>
       {showAdd&&(
-        <div style={{...Cs,marginBottom:12}}>
+        <div style={{...Cs,marginBottom:12,border:editBaz?"1px solid rgba(251,191,36,0.35)":undefined}}>
+          {editBaz&&<div style={{color:"#fbbf24",fontWeight:700,marginBottom:8,fontSize:13}}>✏️ تعديل: {editBaz.name}</div>}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
             <div style={{gridColumn:"span 2"}}><Lb>اسم البازار</Lb><In value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="بازار العيد"/></div>
             <div><Lb>التاريخ</Lb><In type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/></div>
@@ -869,7 +998,10 @@ function Bazaars({data,update,cur}) {
                 </div>
                 <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:5}}>{bs.length} عملية · {bs.reduce((s,x)=>s+Number(x.qty||1),0)} قطعة</div>
               </div>
-              <button onClick={()=>del(b.id)} style={{...Bs("#f87171"),padding:"3px 6px",fontSize:10}}>🗑</button>
+              <div style={{display:"flex",gap:4}}>
+                <button onClick={()=>openEdit(b)} style={{...Bs("rgba(255,191,36,0.3)"),padding:"3px 6px",fontSize:10,border:"1px solid rgba(251,191,36,0.4)"}}>✏️</button>
+                <button onClick={()=>del(b.id)} style={{...Bs("#f87171"),padding:"3px 6px",fontSize:10}}>🗑</button>
+              </div>
             </div>
           </div>
         );
@@ -947,13 +1079,9 @@ function Sales({data,update,cur,catIcon}) {
         <div style={{...Cs,marginBottom:12}}>
           <div style={{color:"#ffb4dc",fontWeight:700,marginBottom:10,fontSize:13}}>{editSale?"تعديل عملية بيع":"تسجيل بيع جديد"}</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            <div style={{gridColumn:"span 2"}}>
-              <Lb>المنتج</Lb>
-              <Sl value={form.productId} onChange={e=>setForm(f=>({...f,productId:e.target.value,customPrice:""}))}>
-                <option value="">اختاري...</option>
-                {available.map(p=><option key={p.id} value={p.id}>{catIcon(p.categoryKey)} {p.name} ({p.readyCount} جاهزة) — {fmt(p.suggestedPrice)} {cur}</option>)}
-                {editSale&&!available.find(p=>p.id===editSale.productId)&&<option value={editSale.productId}>{editSale.productName}</option>}
-              </Sl>
+            <div style={{gridColumn:"span 2",position:"relative"}}>
+              <Lb>المنتج (ابحثي بالاسم)</Lb>
+              <SalesSearch available={available} editSale={editSale} form={form} setForm={setForm} catIcon={catIcon} cur={cur} fmt={fmt}/>
             </div>
             <div><Lb>عدد القطع</Lb><In type="number" min="1" value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))}/></div>
             <div><Lb>قناة البيع</Lb><Sl value={form.channel} onChange={e=>setForm(f=>({...f,channel:e.target.value}))}><option>بازار</option><option>أونلاين</option><option>مباشر</option><option>هدية</option></Sl></div>
@@ -1158,6 +1286,47 @@ function Settings({data,update}) {
         </div>
         <button onClick={save} style={{...Bs("#ff6eb4"),width:"100%"}}>💾 حفظ الإعدادات</button>
       </div>
+    </div>
+  );
+}
+
+
+/* ─── SalesSearch ────────────────────────────────────────────────────────────── */
+function SalesSearch({available,editSale,form,setForm,catIcon,cur,fmt}) {
+  const [query,setQuery]=useState("");
+  const [showSug,setShowSug]=useState(false);
+  const selectedProd=available.find(p=>p.id===form.productId);
+
+  const filtered=available.filter(p=>!query||p.name.includes(query)||p.name.toLowerCase().includes(query.toLowerCase()));
+
+  const select=(p)=>{
+    setForm(f=>({...f,productId:p.id,customPrice:""}));
+    setQuery(p.name);
+    setShowSug(false);
+  };
+
+  return (
+    <div style={{position:"relative"}}>
+      <input
+        value={selectedProd?selectedProd.name:query}
+        onChange={e=>{setQuery(e.target.value);setForm(f=>({...f,productId:"",customPrice:""}));setShowSug(true);}}
+        onFocus={()=>setShowSug(true)}
+        placeholder="ابحثي باسم المنتج..."
+        style={{...Ns,width:"100%"}}
+      />
+      {showSug&&filtered.length>0&&(
+        <div style={{position:"absolute",top:"100%",right:0,left:0,background:"#1e1040",border:"1px solid rgba(255,180,220,0.3)",borderRadius:8,zIndex:50,maxHeight:200,overflowY:"auto"}}>
+          {filtered.slice(0,6).map(p=>(
+            <div key={p.id} onMouseDown={()=>select(p)} style={{padding:"8px 12px",cursor:"pointer",fontSize:12,borderBottom:"1px solid rgba(255,255,255,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{color:"#ffb4dc",fontWeight:600}}>{catIcon(p.categoryKey)} {p.name}</span>
+              <span style={{color:"rgba(255,255,255,0.45)",fontSize:10}}>{p.readyCount} جاهز · {fmt(p.suggestedPrice)} {cur}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {editSale&&!available.find(p=>p.id===editSale.productId)&&(
+        <div style={{fontSize:11,color:"#fbbf24",marginTop:4}}>المنتج: {editSale.productName}</div>
+      )}
     </div>
   );
 }
