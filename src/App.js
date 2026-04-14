@@ -21,7 +21,6 @@ const initialState = {
   bazaars: [],
   sales: [],
   sessions: [],
-  customerOrders: [],
   settings: { hourlyRate:3000, currency:"د.ع" },
 };
 
@@ -67,28 +66,6 @@ function monthLabel(ym) {
 function fileToBase64(file) { return new Promise(r=>{const rd=new FileReader();rd.onload=e=>r(e.target.result);rd.readAsDataURL(file);}); }
 
 /* ─── App ────────────────────────────────────────────────────────────────────── */
-const TABS=["dashboard","products","session","inventory","bazaars","sales","monthly","orders","settings"];
-
-function useSwipe(onLeft,onRight){
-  const startX=useRef(null);
-  const startY=useRef(null);
-  return {
-    onTouchStart:e=>{startX.current=e.touches[0].clientX;startY.current=e.touches[0].clientY;},
-    onTouchEnd:e=>{
-      if(startX.current===null) return;
-      const dx=e.changedTouches[0].clientX-startX.current;
-      const dy=e.changedTouches[0].clientY-startY.current;
-      if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>50){
-        if(dx<0) onLeft(); else onRight();
-      }
-      startX.current=null;
-    }
-  };
-}
-
-function confirmDel(msg,fn){ if(window.confirm(msg||"تأكيد الحذف؟")) fn(); }
-
-const calcPriceFn=calcPrice;
 export default function App() {
   const [data,setData]=useState(loadData);
   const [tab,setTab]=useState("dashboard");
@@ -162,7 +139,6 @@ export default function App() {
           {key:"bazaars",label:"البازارات",icon:"🛍️"},
           {key:"sales",label:"المبيعات",icon:"💰"},
           {key:"monthly",label:"إحصائيات",icon:"📅"},
-          {key:"orders",label:"طلبات",icon:"📋"},
           {key:"settings",label:"الإعدادات",icon:"⚙️"},
         ].map(t=>(
           <button key={t.key} onClick={()=>setTab(t.key)} style={{
@@ -177,10 +153,7 @@ export default function App() {
         ))}
       </div>
 
-      <div style={{padding:"14px 12px",maxWidth:900,margin:"0 auto"}} {...useSwipe(
-        ()=>setTab(t=>{const i=TABS.indexOf(t);return i<TABS.length-1?TABS[i+1]:t;}),
-        ()=>setTab(t=>{const i=TABS.indexOf(t);return i>0?TABS[i-1]:t;})
-      )}>
+      <div style={{padding:"14px 12px",maxWidth:900,margin:"0 auto"}}>
         {tab==="dashboard" && <Dashboard stats={stats} data={data} cur={cur} catIcon={catIcon} setTab={setTab} alerts={alerts}/>}
         {tab==="products"  && <Products data={data} update={update} cur={cur} hr={hr} catIcon={catIcon}/>}
         {tab==="session"   && <Session data={data} update={update} cur={cur} hr={hr} catIcon={catIcon} timerSec={timerSec} running={running} paused={paused} setRunning={setRunning} setPaused={setPaused} setTimerSec={setTimerSec} activeSession={activeSession} setActiveSession={setActiveSession}/>}
@@ -188,7 +161,6 @@ export default function App() {
         {tab==="bazaars"   && <Bazaars data={data} update={update} cur={cur}/>}
         {tab==="sales"     && <Sales data={data} update={update} cur={cur} catIcon={catIcon}/>}
         {tab==="monthly"   && <Monthly data={data} cur={cur}/>}
-        {tab==="orders"    && <CustomerOrders data={data} update={update}/>}
         {tab==="alerts"    && <Alerts alerts={alerts}/>}
         {tab==="settings"  && <Settings data={data} update={update}/>}
       </div>
@@ -353,7 +325,7 @@ function Products({data,update,cur,hr,catIcon}) {
     }
     return {...prev,materials,products:prev.products.map(p=>p.id===id?{...p,readyCount:(Number(p.readyCount)||0)+qty,status:"مكتمل"}:p)};
   });
-  const del=id=>confirmDel("تأكيد حذف هذا المنتج؟",()=>update(prev=>({...prev,products:prev.products.filter(p=>p.id!==id)})));
+  const del=id=>update(prev=>({...prev,products:prev.products.filter(p=>p.id!==id)}));
   const changeStatus=(id,status)=>update(prev=>({...prev,products:prev.products.map(p=>p.id===id?{...p,status}:p)}));
 
   const filtered=(data.products||[]).filter(p=>{
@@ -558,40 +530,20 @@ function Session({data,update,cur,hr,catIcon,timerSec,running,paused,setRunning,
           materials=materials.map((m,i)=>i===matIdx?{...m,quantity:Math.max(0,Number(m.quantity)-deductAmt)}:m);
         });
       });
-products: prev.products.map(p => {
-  const sel = activeSession.prods.find(x => x.id === p.id);
-  if (!sel) return p;
-
-  const addQty = addToReady.includes(p.id) ? Number(sel.qty || 1) : 0;
-
-  // تحديث وقت العمل
-  const updatedLabor = minsPerPc > 0 ? minsPerPc : p.laborMinutes;
-
-  const newMatCost = Number(p.materialCost || 0);
-
-  const newCalc = calcPriceFn(
-    updatedLabor,
-    newMatCost,
-    p.targetProfit || 30,
-    p.discount || 0,
-    prev.settings.hourlyRate || 3000
-  );
-
-  return {
-    ...p,
-    readyCount: (Number(p.readyCount) || 0) + addQty,
-    status: addQty > 0 ? "مكتمل" : p.status,
-    laborMinutes: updatedLabor,
-
-    ...newCalc,
-    suggestedPrice: newCalc.suggested,
-    discountedPrice: newCalc.discounted,
-    totalCost: newCalc.totalCost,
-    laborCost: newCalc.laborCost
-  };
-}),
+      return {
+        ...prev,
+        materials,
+        products:prev.products.map(p=>{
+          const sel=activeSession.prods.find(x=>x.id===p.id);
+          if(!sel) return p;
+          const addQty=addToReady.includes(p.id)?Number(sel.qty||1):0;
+          return {...p,readyCount:(Number(p.readyCount)||0)+addQty,status:addQty>0?"مكتمل":p.status};
+        }),
+        sessions:[...(prev.sessions||[]),{id:Date.now().toString(),date:new Date().toLocaleDateString("ar-IQ"),prods:activeSession.prods,totalMins,minsPerPc,totalPcs,note:extraNote}]
+      };
+    });
     setTimerSec(0);setActiveSession(null);setSelProds([]);setExtraNote("");setAddToReady([]);setStep(1);
-
+  };
 
   // New product timer
   const [npRunning,setNpRunning]=useState(false);
@@ -814,7 +766,7 @@ products: prev.products.map(p => {
       )}
     </div>
   );
-},
+}
 
 /* ─── Inventory ──────────────────────────────────────────────────────────────── */
 function Inventory({data,update,cur}) {
@@ -875,7 +827,7 @@ function Inventory({data,update,cur}) {
   };
 
   const deduct=(id,amt)=>update(prev=>({...prev,materials:prev.materials.map(m=>m.id===id?{...m,quantity:Math.max(0,Number(m.quantity)-Number(amt))}:m)}));
-  const delMat=(id)=>confirmDel("تأكيد حذف هذه المادة؟",()=>update(prev=>({...prev,materials:prev.materials.filter(m=>m.id!==id)})));
+  const delMat=(id)=>update(prev=>({...prev,materials:prev.materials.filter(m=>m.id!==id)}));
 
   return (
     <div>
@@ -979,7 +931,7 @@ function Inventory({data,update,cur}) {
       )}
     </div>
   );
-},
+}
 
 /* ─── Bazaars ────────────────────────────────────────────────────────────────── */
 function Bazaars({data,update,cur}) {
@@ -999,7 +951,7 @@ function Bazaars({data,update,cur}) {
     setForm(emptyForm());setShowAdd(false);
   };
   const openEdit=(b)=>{setForm({name:b.name,date:b.date||"",location:b.location||"",tableCost:b.tableCost||0,transportCost:b.transportCost||0,otherCosts:b.otherCosts||0,notes:b.notes||""});setEditBaz(b);setShowAdd(true);};
-  const del=id=>confirmDel("تأكيد حذف هذا البازار؟",()=>update(prev=>({...prev,bazaars:prev.bazaars.filter(b=>b.id!==id)})));
+  const del=id=>update(prev=>({...prev,bazaars:prev.bazaars.filter(b=>b.id!==id)}));
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
@@ -1021,11 +973,7 @@ function Bazaars({data,update,cur}) {
           <button onClick={save} style={{...Bs("#ff6eb4"),width:"100%",marginTop:10}}>💾 حفظ</button>
         </div>
       )}
-      {[...data.bazaars].sort((a,b)=>{
-        const da=a.date?new Date(a.date.split("/").reverse().join("-")):new Date(0);
-        const db=b.date?new Date(b.date.split("/").reverse().join("-")):new Date(0);
-        return db-da;
-      }).map(b=>{
+      {data.bazaars.map(b=>{
         const bs=data.sales.filter(s=>s.bazaarId===b.id);
         const rev=bs.reduce((s,x)=>s+Number(x.total||0),0);
         const gross=bs.reduce((s,x)=>s+Number(x.totalProfit||0),0);
@@ -1057,97 +1005,19 @@ function Bazaars({data,update,cur}) {
                 <button onClick={()=>del(b.id)} style={{...Bs("#f87171"),padding:"3px 6px",fontSize:10}}>🗑</button>
               </div>
             </div>
-            <BazaarTopProducts sales={bs} cur={cur}/>
           </div>
         );
       })}
       {!data.bazaars.length&&<div style={{textAlign:"center",padding:35,color:"rgba(255,255,255,0.3)"}}><div style={{fontSize:44}}>🛍️</div><div style={{marginTop:8}}>ما في بازارات بعد</div></div>}
     </div>
   );
-},
-
-/* ─── BazaarTopProducts ──────────────────────────────────────────────────────── */
-// eslint-disable-next-line no-unused-vars
-function BazaarTopProducts2({sales,cur}) {
-  const [show,setShow]=useState(false);
-  if(!sales.length) return null;
-
-  const prodMap={};
-  sales.forEach(s=>{
-    const pid=s.productId||s.productName;
-    if(!prodMap[pid]) prodMap[pid]={name:s.productName,qty:0,profit:0};
-    prodMap[pid].qty+=Number(s.qty||1);
-    prodMap[pid].profit+=Number(s.totalProfit||0);
-  });
-  const top=Object.values(prodMap).sort((a,b)=>b.qty!==a.qty?b.qty-a.qty:b.profit-a.profit).slice(0,5);
-
-  return (
-    <div style={{marginTop:8}}>
-      <button onClick={()=>setShow(!show)} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"6px 12px",cursor:"pointer",color:"rgba(255,180,220,0.7)",fontFamily:"inherit",fontSize:11,width:"100%"}}>
-        {show?"↑ إخفاء":"↓ أكثر المنتجات مبيعاً"}
-      </button>
-      {show&&(
-        <div style={{marginTop:7,padding:10,background:"rgba(255,255,255,0.04)",borderRadius:9}}>
-          {top.map((p,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-              <div style={{display:"flex",alignItems:"center",gap:7}}>
-                <span style={{color:i===0?"#fbbf24":i===1?"#9ca3af":i===2?"#cd7c2f":"rgba(255,255,255,0.4)",fontWeight:800,fontSize:12,minWidth:18}}>#{i+1}</span>
-                <span style={{fontSize:12,fontWeight:600}}>{p.name}</span>
-              </div>
-              <div style={{textAlign:"left"}}>
-                <div style={{fontSize:11,color:"#4ade80",fontWeight:600}}>{p.qty} قطعة</div>
-                <div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>{fmt(Math.round(p.profit))} {cur}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-},
-
-/* ─── BazaarTopProducts ──────────────────────────────────────────────────────── */
-function BazaarTopProducts({sales,cur}) {
-  const [show,setShow]=useState(false);
-  if(!sales.length) return null;
-  const prodMap={};
-  sales.forEach(s=>{
-    const pid=s.productId||s.productName;
-    if(!prodMap[pid]) prodMap[pid]={name:s.productName,qty:0,profit:0};
-    prodMap[pid].qty+=Number(s.qty||1);
-    prodMap[pid].profit+=Number(s.totalProfit||0);
-  });
-  const top=Object.values(prodMap).sort((a,b)=>b.qty!==a.qty?b.qty-a.qty:b.profit-a.profit).slice(0,5);
-  return (
-    <div style={{marginTop:8}}>
-      <button onClick={()=>setShow(!show)} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,padding:"6px 12px",cursor:"pointer",color:"rgba(255,180,220,0.7)",fontFamily:"inherit",fontSize:11,width:"100%"}}>
-        {show?"↑ إخفاء":"↓ أكثر المنتجات مبيعاً"}
-      </button>
-      {show&&(
-        <div style={{marginTop:7,padding:10,background:"rgba(255,255,255,0.04)",borderRadius:9}}>
-          {top.map((p,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-              <div style={{display:"flex",alignItems:"center",gap:7}}>
-                <span style={{color:i===0?"#fbbf24":i===1?"#9ca3af":i===2?"#cd7c2f":"rgba(255,255,255,0.4)",fontWeight:800,fontSize:12,minWidth:18}}>#{i+1}</span>
-                <span style={{fontSize:12,fontWeight:600}}>{p.name}</span>
-              </div>
-              <div style={{textAlign:"left"}}>
-                <div style={{fontSize:11,color:"#4ade80",fontWeight:600}}>{p.qty} قطعة</div>
-                <div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>{fmt(Math.round(p.profit))} {cur}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-},
+}
 
 /* ─── Sales ──────────────────────────────────────────────────────────────────── */
 function Sales({data,update,cur,catIcon}) {
   const [showAdd,setShowAdd]=useState(false);
   const [editSale,setEditSale]=useState(null);
-  const [form,setForm]=useState({productId:"",bazaarId:"",qty:1,customPrice:"",discount:0,channel:"بازار",notes:"",isBundle:false});
+  const [form,setForm]=useState({productId:"",bazaarId:"",qty:1,customPrice:"",discount:0,channel:"بازار",notes:""});
 
   const prod=(data.products||[]).find(p=>p.id===form.productId);
   const base=prod?.suggestedPrice||0;
@@ -1158,7 +1028,7 @@ function Sales({data,update,cur,catIcon}) {
   const totalProfit=(unitPrice-unitCost)*qty;
   const available=(data.products||[]).filter(p=>Number(p.readyCount||0)>0);
 
-  const openAdd=()=>{setEditSale(null);setForm({productId:"",bazaarId:"",qty:1,customPrice:"",discount:0,channel:"بازار",notes:"",isBundle:false});setShowAdd(true);};
+  const openAdd=()=>{setEditSale(null);setForm({productId:"",bazaarId:"",qty:1,customPrice:"",discount:0,channel:"بازار",notes:""});setShowAdd(true);};
   const openEdit=(s)=>{
     setEditSale(s);
     setForm({productId:s.productId||"",bazaarId:s.bazaarId||"",qty:s.qty||1,customPrice:s.unitPrice||"",discount:s.discount||0,channel:s.channel||"بازار",notes:s.notes||""});
@@ -1167,15 +1037,6 @@ function Sales({data,update,cur,catIcon}) {
 
   const save=()=>{
     if(!form.productId||!total) return;
-    // Check bazaar date not passed
-    if(form.bazaarId&&!editSale){
-      const baz=data.bazaars.find(b=>b.id===form.bazaarId);
-      if(baz&&baz.date){
-        const bazDate=new Date(baz.date);
-        const today=new Date(); today.setHours(0,0,0,0); bazDate.setHours(0,0,0,0);
-        if(bazDate<today){if(!window.confirm("تاريخ هذا البازار انتهى. هل تريدين إضافة المبيعة رغم ذلك؟")) return;}
-      }
-    }
     if(editSale) {
       // undo old sale effect
       const oldQty=Number(editSale.qty||1);
@@ -1197,17 +1058,17 @@ function Sales({data,update,cur,catIcon}) {
       }));
     }
     setShowAdd(false);setEditSale(null);
-    setForm({productId:"",bazaarId:"",qty:1,customPrice:"",discount:0,channel:"بازار",notes:"",isBundle:false});
+    setForm({productId:"",bazaarId:"",qty:1,customPrice:"",discount:0,channel:"بازار",notes:""});
   };
 
-  const del=id=>confirmDel("تأكيد حذف هذه المبيعة؟ ستعود القطع للمخزون",()=>{
+  const del=id=>{
     const s=data.sales.find(x=>x.id===id);
     update(prev=>({
       ...prev,
       sales:prev.sales.filter(x=>x.id!==id),
       products:prev.products.map(p=>p.id===s?.productId?{...p,readyCount:(Number(p.readyCount)||0)+Number(s.qty||1),soldCount:Math.max(0,(Number(p.soldCount)||0)-Number(s.qty||1))}:p)
     }));
-  });
+  };
 
   return (
     <div>
@@ -1229,12 +1090,6 @@ function Sales({data,update,cur,catIcon}) {
             <div><Lb>البازار</Lb><Sl value={form.bazaarId} onChange={e=>setForm(f=>({...f,bazaarId:e.target.value}))}><option value="">بدون بازار</option>{data.bazaars.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</Sl></div>
             <div><Lb>تخفيض (%)</Lb><In type="number" value={form.discount} onChange={e=>setForm(f=>({...f,discount:e.target.value,customPrice:""}))}/></div>
             <div><Lb>سعر القطعة ({cur})</Lb><In type="number" value={form.customPrice} onChange={e=>setForm(f=>({...f,customPrice:e.target.value}))} placeholder="فارغ=المقترح"/></div>
-            <div style={{gridColumn:"span 2"}}>
-              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:12,color:"rgba(255,200,240,0.7)"}}>
-                <input type="checkbox" checked={form.isBundle||false} onChange={e=>setForm(f=>({...f,isBundle:e.target.checked}))} style={{width:16,height:16,accentColor:"#fbbf24"}}/>
-                <span>🎁 بيع حزمة (مجموعة منتجات بسعر واحد)</span>
-              </label>
-            </div>
           </div>
           {prod&&(
             <div style={{marginTop:9,padding:9,background:"rgba(74,222,128,0.08)",borderRadius:8,border:"1px solid rgba(74,222,128,0.18)"}}>
@@ -1253,11 +1108,35 @@ function Sales({data,update,cur,catIcon}) {
         </div>
       )}
 
-      <SalesByDate sales={data.sales} bazaars={data.bazaars} products={data.products} cur={cur} onEdit={openEdit} onDel={del}/>
+      {[...data.sales].reverse().map(s=>{
+        const p=(data.products||[]).find(x=>x.id===s.productId);
+        return (
+          <div key={s.id} style={{...Cs,marginBottom:7}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:7}}>
+              {p?.image&&<img src={p.image} style={{width:32,height:32,borderRadius:6,objectFit:"cover",flexShrink:0}} alt=""/>}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:700,fontSize:12,marginBottom:2}}>
+                  {s.productName}{s.qty>1&&<span style={{fontSize:11,color:"#fbbf24",marginRight:4}}>×{s.qty}</span>}
+                  <span style={{fontSize:10,background:"rgba(255,180,220,0.12)",color:"#ffb4dc",borderRadius:5,padding:"1px 5px",marginRight:5}}>{s.channel}</span>
+                </div>
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginBottom:3}}>📅 {s.date}{s.bazaarId&&` · 🏪 ${data.bazaars.find(b=>b.id===s.bazaarId)?.name||""}`}</div>
+                <div style={{display:"flex",gap:8,fontSize:11}}>
+                  <span style={{color:"#4ade80",fontWeight:700}}>💰 {fmt(s.total||0)} {cur}</span>
+                  <span style={{color:(s.totalProfit||0)>=0?"#60a5fa":"#f87171"}}>ربح: {fmt(Math.round(s.totalProfit||0))} {cur}</span>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:4,flexShrink:0}}>
+                <button onClick={()=>openEdit(s)} style={{...Bs("rgba(255,255,255,0.12)"),padding:"3px 6px",fontSize:10}}>✏️</button>
+                <button onClick={()=>del(s.id)} style={{...Bs("#f87171"),padding:"3px 6px",fontSize:10}}>🗑</button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
       {!data.sales.length&&<div style={{textAlign:"center",padding:35,color:"rgba(255,255,255,0.3)"}}><div style={{fontSize:44}}>💰</div><div style={{marginTop:8}}>ما في مبيعات بعد</div></div>}
     </div>
   );
-},
+}
 
 /* ─── Monthly ─────────────────────────────────────────────────────────────────── */
 function Monthly({data,cur}) {
@@ -1290,7 +1169,7 @@ function Monthly({data,cur}) {
       })}
     </div>
   );
-},
+}
 
 /* ─── Settings ───────────────────────────────────────────────────────────────── */
 function Settings({data,update}) {
@@ -1411,140 +1290,8 @@ function Settings({data,update}) {
       </div>
     </div>
   );
-},
+}
 
-
-
-/* ─── SalesByDate ─────────────────────────────────────────────────────────────── */
-function SalesByDate({sales,bazaars,products,cur,onEdit,onDel}) {
-  const sorted=[...sales].sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const grouped={};
-  sorted.forEach(s=>{
-    const d=s.date||"بدون تاريخ";
-    if(!grouped[d]) grouped[d]=[];
-    grouped[d].push(s);
-  });
-  const days=Object.keys(grouped);
-  return (
-    <div>
-      {days.map((day,di)=>(
-        <div key={day}>
-          {/* Date separator */}
-          <div style={{display:"flex",alignItems:"center",gap:8,margin:"14px 0 8px"}}>
-            <div style={{flex:1,height:1,background:"rgba(255,180,220,0.2)"}}/>
-            <div style={{fontSize:11,color:"#ffb4dc",fontWeight:600,background:"rgba(255,180,220,0.1)",padding:"3px 10px",borderRadius:10}}>{day}</div>
-            <div style={{flex:1,height:1,background:"rgba(255,180,220,0.2)"}}/>
-          </div>
-          {grouped[day].map(s=>{
-            const p=products.find(x=>x.id===s.productId);
-            return (
-              <div key={s.id} style={{...Cs,marginBottom:7}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:7}}>
-                  {p?.image&&<img src={p.image} style={{width:36,height:36,borderRadius:7,objectFit:"cover",flexShrink:0}} alt=""/>}
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,fontSize:12,marginBottom:2}}>
-                      {s.productName}{s.qty>1&&<span style={{fontSize:11,color:"#fbbf24",marginRight:4}}>×{s.qty}</span>}
-                      {s.isBundle&&<span style={{fontSize:10,background:"rgba(251,191,36,0.2)",color:"#fbbf24",borderRadius:5,padding:"1px 5px",marginRight:4}}>حزمة</span>}
-                      <span style={{fontSize:10,background:"rgba(255,180,220,0.12)",color:"#ffb4dc",borderRadius:5,padding:"1px 5px",marginRight:4}}>{s.channel}</span>
-                    </div>
-                    {s.bazaarId&&<div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginBottom:3}}>🏪 {bazaars.find(b=>b.id===s.bazaarId)?.name||""}</div>}
-                    <div style={{display:"flex",gap:8,fontSize:11}}>
-                      <span style={{color:"#4ade80",fontWeight:700}}>💰 {fmt(s.total||0)} {cur}</span>
-                      <span style={{color:(s.totalProfit||0)>=0?"#60a5fa":"#f87171"}}>ربح: {fmt(Math.round(s.totalProfit||0))} {cur}</span>
-                    </div>
-                  </div>
-                  <div style={{display:"flex",gap:5,flexShrink:0}}>
-                    <button onClick={()=>onEdit(s)} style={{background:"rgba(255,255,255,0.12)",border:"none",borderRadius:8,padding:"6px 10px",cursor:"pointer",color:"#fff",fontSize:13}}>✏️</button>
-                    <button onClick={()=>onDel(s.id)} style={{background:"#f87171",border:"none",borderRadius:8,padding:"6px 10px",cursor:"pointer",color:"#fff",fontSize:13}}>🗑</button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ))}
-    </div>
-  );
-},
-
-/* ─── CustomerOrders ──────────────────────────────────────────────────────────── */
-function CustomerOrders({data,update}) {
-  const [form,setForm]=useState({text:"",type:"طلب",priority:"عادي"});
-  const orders=data.customerOrders||[];
-
-  const add=()=>{
-    if(!form.text.trim()) return;
-    update(prev=>({...prev,customerOrders:[...(prev.customerOrders||[]),{id:Date.now().toString(),text:form.text.trim(),type:form.type,priority:form.priority,done:false,date:new Date().toLocaleDateString("ar-IQ")}]}));
-    setForm({text:"",type:"طلب",priority:"عادي"});
-  };
-  const toggle=id=>update(prev=>({...prev,customerOrders:(prev.customerOrders||[]).map(o=>o.id===id?{...o,done:!o.done}:o)}));
-  const del=id=>confirmDel("حذف هذا الطلب؟",()=>update(prev=>({...prev,customerOrders:(prev.customerOrders||[]).filter(o=>o.id!==id)})));
-
-  const pending=orders.filter(o=>!o.done);
-  const done=orders.filter(o=>o.done);
-
-  return (
-    <div>
-      <h2 style={{color:"#ffb4dc",fontWeight:800,marginBottom:12}}>طلبات الزبائن 📋</h2>
-
-      <div style={{...Cs,marginBottom:12}}>
-        <div style={{marginBottom:8}}><Lb>الطلب أو الاقتراح</Lb><In value={form.text} onChange={e=>setForm(f=>({...f,text:e.target.value}))} placeholder="مثال: ميدالية باللون الأزرق، إعادة ستوك المداليات..."/></div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-          <div><Lb>النوع</Lb>
-            <Sl value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}>
-              <option>طلب زبون</option><option>إعادة ستوك</option><option>فكرة منتج جديد</option><option>ملاحظة</option>
-            </Sl>
-          </div>
-          <div><Lb>الأولوية</Lb>
-            <Sl value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))}>
-              <option>عادي</option><option>مهم</option><option>عاجل</option>
-            </Sl>
-          </div>
-        </div>
-        <button onClick={add} style={{...Bs("#ff6eb4"),width:"100%",justifyContent:"center"}}>+ إضافة</button>
-      </div>
-
-      {pending.length>0&&(
-        <div style={{marginBottom:14}}>
-          <div style={{color:"#ffb4dc",fontWeight:700,marginBottom:8,fontSize:12}}>⏳ قيد التنفيذ ({pending.length})</div>
-          {pending.sort((a,b)=>a.priority==="عاجل"?-1:b.priority==="عاجل"?1:a.priority==="مهم"?-1:1).map(o=>(
-            <div key={o.id} style={{...Cs,marginBottom:7,border:o.priority==="عاجل"?"1px solid rgba(248,113,113,0.45)":o.priority==="مهم"?"1px solid rgba(251,191,36,0.35)":undefined}}>
-              <div style={{display:"flex",alignItems:"center",gap:9}}>
-                <div onClick={()=>toggle(o.id)} style={{width:20,height:20,borderRadius:6,border:"2px solid rgba(255,180,220,0.45)",background:"transparent",cursor:"pointer",flexShrink:0}}/>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:600}}>{o.text}</div>
-                  <div style={{display:"flex",gap:6,marginTop:3,flexWrap:"wrap"}}>
-                    <span style={{fontSize:10,background:"rgba(255,180,220,0.12)",color:"#ffb4dc",borderRadius:5,padding:"1px 6px"}}>{o.type}</span>
-                    {o.priority!=="عادي"&&<span style={{fontSize:10,background:o.priority==="عاجل"?"rgba(248,113,113,0.2)":"rgba(251,191,36,0.2)",color:o.priority==="عاجل"?"#f87171":"#fbbf24",borderRadius:5,padding:"1px 6px"}}>{o.priority}</span>}
-                    <span style={{fontSize:10,color:"rgba(255,255,255,0.35)"}}>{o.date}</span>
-                  </div>
-                </div>
-                <button onClick={()=>del(o.id)} style={{background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:16,padding:"4px",flexShrink:0}}>🗑</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {done.length>0&&(
-        <div>
-          <div style={{color:"rgba(255,255,255,0.35)",fontWeight:700,marginBottom:8,fontSize:12}}>✅ منجز ({done.length})</div>
-          {done.map(o=>(
-            <div key={o.id} style={{...Cs,marginBottom:6,opacity:0.5}}>
-              <div style={{display:"flex",alignItems:"center",gap:9}}>
-                <div onClick={()=>toggle(o.id)} style={{width:20,height:20,borderRadius:6,border:"2px solid #4ade80",background:"#4ade80",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,flexShrink:0,color:"#fff"}}>✓</div>
-                <div style={{flex:1,textDecoration:"line-through",fontSize:12,color:"rgba(255,255,255,0.5)"}}>{o.text}</div>
-                <button onClick={()=>del(o.id)} style={{background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:14,padding:"4px",flexShrink:0}}>🗑</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!orders.length&&<div style={{textAlign:"center",padding:35,color:"rgba(255,255,255,0.3)"}}><div style={{fontSize:44}}>📋</div><div style={{marginTop:8}}>ما في طلبات بعد</div></div>}
-    </div>
-  );
-},
 
 /* ─── SalesSearch ────────────────────────────────────────────────────────────── */
 function SalesSearch({available,editSale,form,setForm,catIcon,cur,fmt}) {
@@ -1560,63 +1307,37 @@ function SalesSearch({available,editSale,form,setForm,catIcon,cur,fmt}) {
     setShowSug(false);
   };
 
-return (
-  <div style={{position:"relative"}}>
-    <input
-      value={selectedProd ? selectedProd.name : query}
-      onChange={e => {
-        setQuery(e.target.value);
-        setForm(f => ({ ...f, productId: "", customPrice: "" }));
-        setShowSug(true);
-      }}
-      onFocus={() => setShowSug(true)}
-      placeholder="ابحثي باسم المنتج..."
-      style={{ ...Ns, width: "100%" }}
-    />
-
-    {showSug && filtered.length > 0 && (
-      <div style={{
-        position: "absolute",
-        top: "100%",
-        right: 0,
-        left: 0,
-        background: "#1e1040",
-        border: "1px solid rgba(255,180,220,0.3)",
-        borderRadius: 8,
-        zIndex: 50,
-        maxHeight: 200,
-        overflowY: "auto"
-      }}>
-        {filtered.slice(0, 6).map(p => (
-          <div
-            key={p.id}
-            onMouseDown={() => select(p)}
-            style={{
-              padding: "8px 12px",
-              cursor: "pointer",
-              fontSize: 12,
-              borderBottom: "1px solid rgba(255,255,255,0.06)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center"
-            }}
-          >
-            <span style={{ color: "#ffb4dc", fontWeight: 600 }}>
-              {catIcon(p.categoryKey)} {p.name}
-            </span>
-            <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 10 }}>
-              {p.readyCount} جاهز · {fmt(p.suggestedPrice)} {cur}
-            </span>
-          </div>
-        ))}
-      </div>
-    )}
-
-    {editSale && !available.find(p => p.id === editSale.productId) && (
-      <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 4 }}>
-        المنتج: {editSale.productName}
-      </div>
-    )}
-  </div>
-);
+  return (
+    <div style={{position:"relative"}}>
+      <input
+        value={selectedProd?selectedProd.name:query}
+        onChange={e=>{setQuery(e.target.value);setForm(f=>({...f,productId:"",customPrice:""}));setShowSug(true);}}
+        onFocus={()=>setShowSug(true)}
+        placeholder="ابحثي باسم المنتج..."
+        style={{...Ns,width:"100%"}}
+      />
+      {showSug&&filtered.length>0&&(
+        <div style={{position:"absolute",top:"100%",right:0,left:0,background:"#1e1040",border:"1px solid rgba(255,180,220,0.3)",borderRadius:8,zIndex:50,maxHeight:200,overflowY:"auto"}}>
+          {filtered.slice(0,6).map(p=>(
+            <div key={p.id} onMouseDown={()=>select(p)} style={{padding:"8px 12px",cursor:"pointer",fontSize:12,borderBottom:"1px solid rgba(255,255,255,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{color:"#ffb4dc",fontWeight:600}}>{catIcon(p.categoryKey)} {p.name}</span>
+              <span style={{color:"rgba(255,255,255,0.45)",fontSize:10}}>{p.readyCount} جاهز · {fmt(p.suggestedPrice)} {cur}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {editSale&&!available.find(p=>p.id===editSale.productId)&&(
+        <div style={{fontSize:11,color:"#fbbf24",marginTop:4}}>المنتج: {editSale.productName}</div>
+      )}
+    </div>
+  );
 }
+
+/* ─── Shared styles ───────────────────────────────────────────────────────────── */
+const Cs={background:"rgba(255,255,255,0.06)",borderRadius:12,padding:12,border:"1px solid rgba(255,255,255,0.08)",backdropFilter:"blur(10px)"};
+const Ns={width:"100%",background:"rgba(255,255,255,0.09)",border:"1px solid rgba(255,180,220,0.25)",borderRadius:8,padding:"8px 10px",color:"#f0e6ff",fontFamily:"inherit",fontSize:16,boxSizing:"border-box"};
+function Bs(bg){return{background:bg,border:"none",borderRadius:8,padding:"7px 12px",cursor:"pointer",color:"#fff",fontFamily:"inherit",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4};}
+function Lb({children}){return <div style={{fontSize:11,color:"rgba(255,200,240,0.7)",marginBottom:3,fontWeight:500}}>{children}</div>;}
+function In({style,...p}){return <input style={{...Ns,...style}} {...p}/>;}
+function Sl({children,style,...p}){return <select style={{...Ns,...style,cursor:"pointer"}} {...p}>{children}</select>;}
+function Rw({l,v,b,c}){return <div style={{display:"flex",justifyContent:"space-between",padding:"2px 0"}}><span style={{color:"rgba(255,200,240,0.5)",fontSize:11}}>{l}</span><span style={{fontWeight:b?700:400,color:c||"#f0e6ff",fontSize:11}}>{v}</span></div>;}
