@@ -1058,7 +1058,7 @@ function Bazaars({data,update,cur}) {
 }
 
 /* ─── BazaarTopProducts ──────────────────────────────────────────────────────── */
-function BazaarTopProducts({sales,cur}) {
+function BazaarTopProducts2({sales,cur}) {
   const [show,setShow]=useState(false);
   if(!sales.length) return null;
 
