@@ -1058,6 +1058,7 @@ function Bazaars({data,update,cur}) {
 }
 
 /* ─── BazaarTopProducts ──────────────────────────────────────────────────────── */
+// eslint-disable-next-line no-unused-vars
 function BazaarTopProducts2({sales,cur}) {
   const [show,setShow]=useState(false);
   if(!sales.length) return null;
