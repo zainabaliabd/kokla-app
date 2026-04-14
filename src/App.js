@@ -1560,36 +1560,64 @@ function SalesSearch({available,editSale,form,setForm,catIcon,cur,fmt}) {
     setShowSug(false);
   };
 
-  return (
-    <div style={{position:"relative"}}>
-      <input
-        value={selectedProd?selectedProd.name:query}
-        onChange={e=>{setQuery(e.target.value);setForm(f=>({...f,productId:"",customPrice:""}));setShowSug(true);}}
-        onFocus={()=>setShowSug(true)}
-        placeholder="ابحثي باسم المنتج..."
-        style={{...Ns,width:"100%"}}
-      />
-      {showSug&&filtered.length>0&&(
-        <div style={{position:"absolute",top:"100%",right:0,left:0,background:"#1e1040",border:"1px solid rgba(255,180,220,0.3)",borderRadius:8,zIndex:50,maxHeight:200,overflowY:"auto"}}>
-          {filtered.slice(0,6).map(p=>(
-            <div key={p.id} onMouseDown={()=>select(p)} style={{padding:"8px 12px",cursor:"pointer",fontSize:12,borderBottom:"1px solid rgba(255,255,255,0.06)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <span style={{color:"#ffb4dc",fontWeight:600}}>{catIcon(p.categoryKey)} {p.name}</span>
-              <span style={{color:"rgba(255,255,255,0.45)",fontSize:10}}>{p.readyCount} جاهز · {fmt(p.suggestedPrice)} {cur}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {editSale&&!available.find(p=>p.id===editSale.productId)&&(
-        <div style={{fontSize:11,color:"#fbbf24",marginTop:4}}>المنتج: {editSale.productName}</div>
-      )}
-    </div>
-  );
+return (
+  <div style={{position:"relative"}}>
+    <input
+      value={selectedProd ? selectedProd.name : query}
+      onChange={e => {
+        setQuery(e.target.value);
+        setForm(f => ({ ...f, productId: "", customPrice: "" }));
+        setShowSug(true);
+      }}
+      onFocus={() => setShowSug(true)}
+      placeholder="ابحثي باسم المنتج..."
+      style={{ ...Ns, width: "100%" }}
+    />
 
-/* ─── Shared styles ───────────────────────────────────────────────────────────── */
-const Cs={background:"rgba(255,255,255,0.06)",borderRadius:12,padding:12,border:"1px solid rgba(255,255,255,0.08)",backdropFilter:"blur(10px)"};
-const Ns={width:"100%",background:"rgba(255,255,255,0.09)",border:"1px solid rgba(255,180,220,0.25)",borderRadius:8,padding:"8px 10px",color:"#f0e6ff",fontFamily:"inherit",fontSize:16,boxSizing:"border-box"};
-function Bs(bg){return{background:bg,border:"none",borderRadius:8,padding:"7px 12px",cursor:"pointer",color:"#fff",fontFamily:"inherit",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4};}
-function Lb({children}){return <div style={{fontSize:11,color:"rgba(255,200,240,0.7)",marginBottom:3,fontWeight:500}}>{children}</div>;}
-function In({style,...p}){return <input style={{...Ns,...style}} {...p}/>;}
-function Sl({children,style,...p}){return <select style={{...Ns,...style,cursor:"pointer"}} {...p}>{children}</select>;}
-function Rw({l,v,b,c}){return <div style={{display:"flex",justifyContent:"space-between",padding:"2px 0"}}><span style={{color:"rgba(255,200,240,0.5)",fontSize:11}}>{l}</span><span style={{fontWeight:b?700:400,color:c||"#f0e6ff",fontSize:11}}>{v}</span></div>;}
+    {showSug && filtered.length > 0 && (
+      <div style={{
+        position: "absolute",
+        top: "100%",
+        right: 0,
+        left: 0,
+        background: "#1e1040",
+        border: "1px solid rgba(255,180,220,0.3)",
+        borderRadius: 8,
+        zIndex: 50,
+        maxHeight: 200,
+        overflowY: "auto"
+      }}>
+        {filtered.slice(0, 6).map(p => (
+          <div
+            key={p.id}
+            onMouseDown={() => select(p)}
+            style={{
+              padding: "8px 12px",
+              cursor: "pointer",
+              fontSize: 12,
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}
+          >
+            <span style={{ color: "#ffb4dc", fontWeight: 600 }}>
+              {catIcon(p.categoryKey)} {p.name}
+            </span>
+            <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 10 }}>
+              {p.readyCount} جاهز · {fmt(p.suggestedPrice)} {cur}
+            </span>
+          </div>
+        ))}
+      </div>
+    )}
+
+    {editSale && !available.find(p => p.id === editSale.productId) && (
+      <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 4 }}>
+        المنتج: {editSale.productName}
+      </div>
+    )}
+  </div>
+);
+
+}
