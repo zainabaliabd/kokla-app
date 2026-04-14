@@ -979,7 +979,7 @@ function Inventory({data,update,cur}) {
       )}
     </div>
   );
-}
+},
 
 /* ─── Bazaars ────────────────────────────────────────────────────────────────── */
 function Bazaars({data,update,cur}) {
@@ -1064,7 +1064,7 @@ function Bazaars({data,update,cur}) {
       {!data.bazaars.length&&<div style={{textAlign:"center",padding:35,color:"rgba(255,255,255,0.3)"}}><div style={{fontSize:44}}>🛍️</div><div style={{marginTop:8}}>ما في بازارات بعد</div></div>}
     </div>
   );
-}
+},
 
 /* ─── BazaarTopProducts ──────────────────────────────────────────────────────── */
 // eslint-disable-next-line no-unused-vars
@@ -1104,7 +1104,7 @@ function BazaarTopProducts2({sales,cur}) {
       )}
     </div>
   );
-}
+},
 
 /* ─── BazaarTopProducts ──────────────────────────────────────────────────────── */
 function BazaarTopProducts({sales,cur}) {
@@ -1141,7 +1141,7 @@ function BazaarTopProducts({sales,cur}) {
       )}
     </div>
   );
-}
+},
 
 /* ─── Sales ──────────────────────────────────────────────────────────────────── */
 function Sales({data,update,cur,catIcon}) {
@@ -1257,7 +1257,7 @@ function Sales({data,update,cur,catIcon}) {
       {!data.sales.length&&<div style={{textAlign:"center",padding:35,color:"rgba(255,255,255,0.3)"}}><div style={{fontSize:44}}>💰</div><div style={{marginTop:8}}>ما في مبيعات بعد</div></div>}
     </div>
   );
-}
+},
 
 /* ─── Monthly ─────────────────────────────────────────────────────────────────── */
 function Monthly({data,cur}) {
@@ -1290,7 +1290,7 @@ function Monthly({data,cur}) {
       })}
     </div>
   );
-}
+},
 
 /* ─── Settings ───────────────────────────────────────────────────────────────── */
 function Settings({data,update}) {
@@ -1411,7 +1411,7 @@ function Settings({data,update}) {
       </div>
     </div>
   );
-}
+},
 
 
 
@@ -1465,7 +1465,7 @@ function SalesByDate({sales,bazaars,products,cur,onEdit,onDel}) {
       ))}
     </div>
   );
-}
+},
 
 /* ─── CustomerOrders ──────────────────────────────────────────────────────────── */
 function CustomerOrders({data,update}) {
@@ -1544,7 +1544,7 @@ function CustomerOrders({data,update}) {
       {!orders.length&&<div style={{textAlign:"center",padding:35,color:"rgba(255,255,255,0.3)"}}><div style={{fontSize:44}}>📋</div><div style={{marginTop:8}}>ما في طلبات بعد</div></div>}
     </div>
   );
-}
+},
 
 /* ─── SalesSearch ────────────────────────────────────────────────────────────── */
 function SalesSearch({available,editSale,form,setForm,catIcon,cur,fmt}) {
@@ -1584,7 +1584,6 @@ function SalesSearch({available,editSale,form,setForm,catIcon,cur,fmt}) {
       )}
     </div>
   );
-}
 
 /* ─── Shared styles ───────────────────────────────────────────────────────────── */
 const Cs={background:"rgba(255,255,255,0.06)",borderRadius:12,padding:12,border:"1px solid rgba(255,255,255,0.08)",backdropFilter:"blur(10px)"};
