@@ -591,7 +591,7 @@ products: prev.products.map(p => {
   };
 }),
     setTimerSec(0);setActiveSession(null);setSelProds([]);setExtraNote("");setAddToReady([]);setStep(1);
-  };
+
 
   // New product timer
   const [npRunning,setNpRunning]=useState(false);
