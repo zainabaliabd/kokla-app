@@ -814,7 +814,7 @@ products: prev.products.map(p => {
       )}
     </div>
   );
-}
+},
 
 /* ─── Inventory ──────────────────────────────────────────────────────────────── */
 function Inventory({data,update,cur}) {
