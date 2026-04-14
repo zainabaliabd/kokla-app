@@ -558,29 +558,38 @@ function Session({data,update,cur,hr,catIcon,timerSec,running,paused,setRunning,
           materials=materials.map((m,i)=>i===matIdx?{...m,quantity:Math.max(0,Number(m.quantity)-deductAmt)}:m);
         });
       });
-      return {
-        ...prev,
-        materials,
-        products:prev.products.map(p=>{
-          const sel=activeSession.prods.find(x=>x.id===p.id);
-          if(!sel) return p;
-          const addQty=addToReady.includes(p.id)?Number(sel.qty||1):0;
-          return {...p,readyCount:(Number(p.readyCount)||0)+addQty,status:addQty>0?"مكتمل":p.status};
-        }),
-        // Update laborMinutes on products to reflect actual session time per piece
-        products:prev.products.map(p=>{
-          const sel=activeSession.prods.find(x=>x.id===p.id);
-          if(!sel) return p;
-          const addQty=addToReady.includes(p.id)?Number(sel.qty||1):0;
-          // Update laborMinutes to session's minsPerPc (actual measured time)
-          const updatedLabor=minsPerPc>0?minsPerPc:p.laborMinutes;
-          const newMatCost=Number(p.materialCost||0);
-          const newCalc=calcPriceFn(updatedLabor,newMatCost,p.targetProfit||30,p.discount||0,prev.settings.hourlyRate||3000);
-          return {...p,readyCount:(Number(p.readyCount)||0)+addQty,status:addQty>0?"مكتمل":p.status,laborMinutes:updatedLabor,...newCalc,suggestedPrice:newCalc.suggested,discountedPrice:newCalc.discounted,totalCost:newCalc.totalCost,laborCost:newCalc.laborCost};
-        }),
-        sessions:[...(prev.sessions||[]),{id:Date.now().toString(),date:new Date().toLocaleDateString("ar-IQ"),prods:activeSession.prods,totalMins,minsPerPc,totalPcs,note:extraNote}]
-      };
-    });
+products: prev.products.map(p => {
+  const sel = activeSession.prods.find(x => x.id === p.id);
+  if (!sel) return p;
+
+  const addQty = addToReady.includes(p.id) ? Number(sel.qty || 1) : 0;
+
+  // تحديث وقت العمل
+  const updatedLabor = minsPerPc > 0 ? minsPerPc : p.laborMinutes;
+
+  const newMatCost = Number(p.materialCost || 0);
+
+  const newCalc = calcPriceFn(
+    updatedLabor,
+    newMatCost,
+    p.targetProfit || 30,
+    p.discount || 0,
+    prev.settings.hourlyRate || 3000
+  );
+
+  return {
+    ...p,
+    readyCount: (Number(p.readyCount) || 0) + addQty,
+    status: addQty > 0 ? "مكتمل" : p.status,
+    laborMinutes: updatedLabor,
+
+    ...newCalc,
+    suggestedPrice: newCalc.suggested,
+    discountedPrice: newCalc.discounted,
+    totalCost: newCalc.totalCost,
+    laborCost: newCalc.laborCost
+  };
+}),
     setTimerSec(0);setActiveSession(null);setSelProds([]);setExtraNote("");setAddToReady([]);setStep(1);
   };
 
