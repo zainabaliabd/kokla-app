@@ -1,4 +1,4 @@
-
+// eslint-disable-next-line no-unused-vars
 import React,{useState,useEffect,useRef,useCallback}from"react";
 const THEMES={pinkDark:{name:"وردي داكن",icon:"🌸",dark:true,bg:"#16002a",bgGrad:"linear-gradient(160deg,#1a0a2e,#16213e,#0f3460)",primary:"#ff6eb4",primaryGrad:"linear-gradient(135deg,#ff6eb4,#e0409a)",accent:"#ffb4dc",accentFaint:"rgba(255,180,220,0.18)",accentVeryFaint:"rgba(255,180,220,0.07)",card:"rgba(255,255,255,0.08)",cardBorder:"rgba(255,255,255,0.1)",navBg:"rgba(18,6,35,0.97)",headerBg:"rgba(18,6,35,0.85)",text:"#f0e6ff",textSub:"rgba(255,200,240,0.65)",textFaint:"rgba(255,200,240,0.38)",green:"#4ade80",greenFaint:"rgba(74,222,128,0.15)",blue:"#60a5fa",blueFaint:"rgba(96,165,250,0.15)",yellow:"#fbbf24",yellowFaint:"rgba(251,191,36,0.15)",red:"#f87171",redFaint:"rgba(248,113,113,0.15)",inputBg:"rgba(255,255,255,0.09)",inputBorder:"rgba(255,180,220,0.28)",separator:"rgba(255,255,255,0.08)"},pinkLight:{name:"وردي فاتح",icon:"🌷",dark:false,bg:"#fff0f8",bgGrad:"linear-gradient(160deg,#fff0f8,#fce4f4,#f8d0ee)",primary:"#d4308a",primaryGrad:"linear-gradient(135deg,#e0409a,#b02070)",accent:"#b02070",accentFaint:"rgba(176,32,112,0.12)",accentVeryFaint:"rgba(176,32,112,0.05)",card:"rgba(255,255,255,0.85)",cardBorder:"rgba(212,48,138,0.18)",navBg:"rgba(255,240,250,0.97)",headerBg:"rgba(255,240,250,0.9)",text:"#3a0028",textSub:"rgba(80,10,50,0.65)",textFaint:"rgba(80,10,50,0.4)",green:"#16a34a",greenFaint:"rgba(22,163,74,0.12)",blue:"#1d4ed8",blueFaint:"rgba(29,78,216,0.1)",yellow:"#b45309",yellowFaint:"rgba(180,83,9,0.1)",red:"#dc2626",redFaint:"rgba(220,38,38,0.1)",inputBg:"rgba(255,255,255,0.9)",inputBorder:"rgba(212,48,138,0.28)",separator:"rgba(0,0,0,0.07)"},blueDark:{name:"أزرق داكن",icon:"🌊",dark:true,bg:"#020d1f",bgGrad:"linear-gradient(160deg,#0a1628,#0d1f3c,#091525)",primary:"#3b82f6",primaryGrad:"linear-gradient(135deg,#3b82f6,#1d4ed8)",accent:"#93c5fd",accentFaint:"rgba(147,197,253,0.18)",accentVeryFaint:"rgba(147,197,253,0.07)",card:"rgba(255,255,255,0.07)",cardBorder:"rgba(147,197,253,0.12)",navBg:"rgba(2,13,31,0.97)",headerBg:"rgba(2,13,31,0.85)",text:"#e8f4ff",textSub:"rgba(147,197,253,0.7)",textFaint:"rgba(147,197,253,0.38)",green:"#34d399",greenFaint:"rgba(52,211,153,0.15)",blue:"#60a5fa",blueFaint:"rgba(96,165,250,0.15)",yellow:"#fbbf24",yellowFaint:"rgba(251,191,36,0.15)",red:"#f87171",redFaint:"rgba(248,113,113,0.15)",inputBg:"rgba(255,255,255,0.08)",inputBorder:"rgba(147,197,253,0.28)",separator:"rgba(255,255,255,0.07)"},blueLight:{name:"أزرق فاتح",icon:"☁️",dark:false,bg:"#f0f7ff",bgGrad:"linear-gradient(160deg,#eff6ff,#dbeafe,#e0f2fe)",primary:"#1d4ed8",primaryGrad:"linear-gradient(135deg,#2563eb,#1d4ed8)",accent:"#1d4ed8",accentFaint:"rgba(29,78,216,0.12)",accentVeryFaint:"rgba(29,78,216,0.05)",card:"rgba(255,255,255,0.88)",cardBorder:"rgba(29,78,216,0.15)",navBg:"rgba(240,247,255,0.97)",headerBg:"rgba(240,247,255,0.9)",text:"#0f2451",textSub:"rgba(15,36,81,0.65)",textFaint:"rgba(15,36,81,0.4)",green:"#16a34a",greenFaint:"rgba(22,163,74,0.1)",blue:"#1d4ed8",blueFaint:"rgba(29,78,216,0.1)",yellow:"#b45309",yellowFaint:"rgba(180,83,9,0.1)",red:"#dc2626",redFaint:"rgba(220,38,38,0.1)",inputBg:"rgba(255,255,255,0.92)",inputBorder:"rgba(29,78,216,0.25)",separator:"rgba(0,0,0,0.06)"}};
 const DEFAULT_CATEGORIES=[{key:"ميداليات",icon:"🏅"},{key:"ملابس",icon:"👗"},{key:"حقائب",icon:"👜"},{key:"إكسسوارات",icon:"💎"},{key:"ديكور بيت",icon:"🏠"},{key:"منتجات شعر",icon:"💇"}];
@@ -15,7 +15,7 @@ function confirmDel(msg,fn){if(window.confirm(msg||"تأكيد الحذف؟"))fn
 function useSwipe(onLeft,onRight){const sx=useRef(null),sy=useRef(null);return{onTouchStart:e=>{sx.current=e.touches[0].clientX;sy.current=e.touches[0].clientY;},onTouchEnd:e=>{if(sx.current===null)return;const dx=e.changedTouches[0].clientX-sx.current;const dy=e.changedTouches[0].clientY-sy.current;if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>55){dx>0?onRight():onLeft();}sx.current=null;}};}
 const calcPriceFn=calcPrice;
 const INS={width:"100%",background:"var(--inputBg,rgba(255,255,255,0.09))",border:"1px solid var(--inputBorder,rgba(255,180,220,0.28))",borderRadius:8,padding:"9px 11px",color:"var(--text,#f0e6ff)",fontFamily:"inherit",fontSize:16,boxSizing:"border-box"};
-
+// eslint-disable-next-line no-unused-vars
 function CDS(T){return{background:T?.card||"rgba(255,255,255,0.07)",borderRadius:13,padding:13,border:`1px solid ${T?.cardBorder||"rgba(255,255,255,0.1)"}`,backdropFilter:"blur(10px)"};}
 function BTS(bg,T){return{background:bg,border:"none",borderRadius:9,padding:"8px 14px",cursor:"pointer",color:bg===T?.card?"var(--text,#f0e6ff)":"#fff",fontFamily:"inherit",fontSize:12,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4};}
 function LB({T,children}){return React.createElement("div",{style:{fontSize:11,color:T?.textSub||"rgba(255,200,240,0.65)",marginBottom:3,fontWeight:500}},children);}
@@ -120,6 +120,7 @@ function PricePreview({totalGiven,totalCost,totalItems,T,cur}){
     </div>
   );
 }
+
 function BazaarMode({baz,data,update,T,cur,catIcon,cssVars,fScale,onExit}){
   const[phase,setPhase]=useState("sell");
   // eslint-disable-next-line no-unused-vars
@@ -335,7 +336,12 @@ function Products({data,update,cur,hr,catIcon,T}){
   const save=()=>{if(!form.name.trim())return;const prod={...form,id:editId||Date.now().toString(),name:form.name.trim(),materialCost:matCost,laborCost,totalCost,suggestedPrice:suggested,discountedPrice:discounted,readyCount:editId?(data.products.find(p=>p.id===editId)?.readyCount||0):0,soldCount:editId?(data.products.find(p=>p.id===editId)?.soldCount||0):0};update(prev=>({...prev,products:editId?prev.products.map(p=>p.id===editId?prod:p):[...(prev.products||[]),prod]}));setForm(ef());setEditId(null);setView("list");};
   const addReady=(id,count)=>update(prev=>{const prod=prev.products.find(p=>p.id===id);const qty=Number(count)||1;let materials=[...prev.materials];if(prod?.materialUsage){prod.materialUsage.forEach(u=>{const mi=materials.findIndex(m=>m.id===u.materialId);if(mi<0)return;materials=materials.map((m,i)=>i===mi?{...m,quantity:Math.max(0,Number(m.quantity)-Number(u.qty||0)*qty)}:m);});}return{...prev,materials,products:prev.products.map(p=>p.id===id?{...p,readyCount:(Number(p.readyCount)||0)+qty,status:"مكتمل"}:p)};});
   const del=id=>confirmDel("حذف هذا المنتج؟",()=>update(prev=>({...prev,products:prev.products.filter(p=>p.id!==id)})));
-  const filtered=(data.products||[]).filter(p=>(!search||p.name.includes(search))&&(filterSt==="الكل"||(p.status||"قيد العمل")===filterSt));
+  const catKeys=["الكل",...new Set((data.categories||DEFAULT_CATEGORIES).map(ct=>ct.key))];
+  const filtered=(data.products||[]).filter(p=>{
+    const matchSearch=!search||p.name.includes(search);
+    const matchCat=filterSt==="الكل"||(p.categoryKey||"")===(filterSt||"");
+    return matchSearch&&matchCat;
+  });
   return(
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><h2 style={{margin:0,fontWeight:800}}>المنتجات 🧶</h2><button onClick={()=>{setView(view==="add"?"list":"add");setForm(ef());setEditId(null);}} style={BTS(T.primary,T)}>{view==="add"?"← القائمة":"+ جديد"}</button></div>
@@ -375,7 +381,12 @@ function Products({data,update,cur,hr,catIcon,T}){
       </div>}
       {view==="list"&&<div>
         <IN value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 بحث..." style={{marginBottom:8,width:"100%"}} T={T}/>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>{["الكل",...PRODUCT_STATUSES].map(s=><button key={s} onClick={()=>setFilterSt(s)} style={{...BTS(filterSt===s?T.primary:T.card,T),fontSize:10,padding:"4px 10px",border:`1px solid ${filterSt===s?"transparent":T.cardBorder}`}}>{s}</button>)}</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+          {catKeys.map(s=>{
+            const catObj=(data.categories||DEFAULT_CATEGORIES).find(x=>x.key===s);
+            return <button key={s} onClick={()=>setFilterSt(s)} style={{...BTS(filterSt===s?T.primary:T.card,T),fontSize:10,padding:"4px 10px",border:`1px solid ${filterSt===s?"transparent":T.cardBorder}`}}>{catObj?`${catObj.icon} ${s}`:s}</button>;
+          })}
+        </div>
         {!filtered.length&&<div style={{textAlign:"center",padding:35,color:T.textFaint}}><div style={{fontSize:44}}>🧶</div><div style={{marginTop:8}}>ما في منتجات</div></div>}
         {filtered.map(p=><ProdCard key={p.id} p={p} T={T} cur={cur} catIcon={catIcon} onEdit={()=>{setForm({...p,materialUsage:p.materialUsage||[]});setEditId(p.id);setView("add");}} onDel={()=>del(p.id)} onAddReady={addReady}/>)}
       </div>}
@@ -385,6 +396,7 @@ function Products({data,update,cur,hr,catIcon,T}){
 
 function Sales({data,update,cur,catIcon,T}){
   const[showAdd,setShowAdd]=useState(false);
+  const[sortDir,setSortDir]=useState("desc");
   const[editSale,setEditSale]=useState(null);
   const[form,setForm]=useState({productId:"",bazaarId:"",qty:1,customPrice:"",discount:0,channel:"بازار",notes:"",isBundle:false});
   const[prodSearch,setProdSearch]=useState("");
@@ -407,14 +419,22 @@ function Sales({data,update,cur,catIcon,T}){
     setShowAdd(false);setEditSale(null);setProdSearch("");
   };
   const del=id=>confirmDel("حذف المبيعة؟ ستعود القطع للمخزون",()=>{const s=data.sales.find(x=>x.id===id);update(prev=>({...prev,sales:prev.sales.filter(x=>x.id!==id),products:prev.products.map(p=>p.id===s?.productId?{...p,readyCount:(Number(p.readyCount)||0)+Number(s.qty||1),soldCount:Math.max(0,(Number(p.soldCount)||0)-Number(s.qty||1))}:p)}));});
-  // Parse Arabic date DD/MM/YYYY → sortable timestamp
+  // eslint-disable-next-line no-unused-vars
   const parseDate=d=>{if(!d)return 0;const p=d.split("/");if(p.length===3&&p[2].length===4)return new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime();return new Date(d).getTime()||0;};
-  const sorted=[...data.sales].sort((a,b)=>{const dd=parseDate(b.date)-parseDate(a.date);return dd!==0?dd:(b.id||"").localeCompare(a.id||"");});
+  const sorted=[...data.sales].sort((a,b)=>{const dd=parseDate(b.date)-parseDate(a.date);const res=dd!==0?dd:(b.id||"").localeCompare(a.id||"");return sortDir==="asc"?-res:res;});
   const grouped={};sorted.forEach(s=>{const d=s.date||"بدون تاريخ";if(!grouped[d])grouped[d]=[];grouped[d].push(s);});
-  const days=Object.keys(grouped).sort((a,b)=>parseDate(b)-parseDate(a));
+  const days=Object.keys(grouped).sort((a,b)=>sortDir==="asc"?parseDate(a)-parseDate(b):parseDate(b)-parseDate(a));
   return(
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><h2 style={{margin:0,fontWeight:800}}>المبيعات 💰</h2><button onClick={openAdd} style={BTS(T.primary,T)}>+ تسجيل بيع</button></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <h2 style={{margin:0,fontWeight:800}}>المبيعات 💰</h2>
+        <div style={{display:"flex",gap:7,alignItems:"center"}}>
+          <button onClick={()=>setSortDir(d=>d==="desc"?"asc":"desc")} style={{...BTS(T.card,T),fontSize:11,padding:"5px 10px",border:`1px solid ${T.cardBorder}`,gap:4}}>
+            ترتيب حسب {sortDir==="desc"?"↓ أحدث":"↑ أقدم"}
+          </button>
+          <button onClick={openAdd} style={BTS(T.primary,T)}>+ بيع</button>
+        </div>
+      </div>
       {showAdd&&<div style={{...CDS(T),marginBottom:12}}>
         <div style={{color:T.accent,fontWeight:700,marginBottom:10}}>{editSale?"تعديل":"بيع جديد"}</div>
         <div style={{position:"relative",marginBottom:8}}>
@@ -536,23 +556,83 @@ function Bazaars({data,update,cur,T,setBazaarMode}){
   );
 }
 
+function MergeHint({name,materials,nameSug,T}){
+  if(!name||!name.trim()||nameSug.length>0) return null;
+  const existing=materials.find(m=>m.name===name.trim());
+  if(!existing) return null;
+  return(
+    <div style={{marginTop:6,padding:"8px 10px",background:T.greenFaint,borderRadius:8,fontSize:11,color:T.green,border:`1px solid ${T.green}30`,lineHeight:1.6}}>
+      ✅ ريستوك لـ "<strong>{name}</strong>" — موجود حالياً: {fmt(existing.quantity)} {existing.unit}<br/>
+      <span style={{color:T.textFaint,fontSize:10}}>الكمية الجديدة ستُضاف للموجود · السعر الجديد سيُطبَّق</span>
+    </div>
+  );
+}
+
 function Inventory({data,update,cur,T}){
   const[showAdd,setShowAdd]=useState(false);
   const[editMat,setEditMat]=useState(null);
   const ef=()=>({name:"",unit:"غرام",totalPurchasePrice:0,quantity:0,minAlert:10});
   const[form,setForm]=useState(ef);
   const[nameSug,setNameSug]=useState([]);
-  const handleName=val=>{setForm(f=>({...f,name:val}));if(val.length>0)setNameSug(data.materials.filter(m=>m.name.includes(val)).slice(0,5));else setNameSug([]);};
-  const selectSug=m=>{setForm(f=>({...f,name:m.name,unit:m.unit,minAlert:m.minAlert||10}));setNameSug([]);};
+  const handleName=val=>{
+    setForm(f=>({...f,name:val}));
+    if(val.trim().length>0){
+      const matches=data.materials.filter(m=>m.name.includes(val.trim()));
+      setNameSug(matches.slice(0,5));
+    } else setNameSug([]);
+  };
+  const selectSug=m=>{
+    // Pre-fill form with existing material data for easy restock
+    setForm({name:m.name,unit:m.unit,minAlert:m.minAlert||10,quantity:"",totalPurchasePrice:""});
+    setNameSug([]);
+  };
   const add=()=>{
     if(!form.name.trim()||!Number(form.quantity))return;
-    const tc=Number(form.totalPurchasePrice||0);const qty=Number(form.quantity);const cpu=qty>0&&tc>0?tc/qty:0;
-    const ei=data.materials.findIndex(m=>m.name===form.name.trim());
+    const newQty=Number(form.quantity);
+    const newTotalPrice=Number(form.totalPurchasePrice||0);
+    const newCpu=newQty>0&&newTotalPrice>0?newTotalPrice/newQty:0;
     update(prev=>{
+      const ei=prev.materials.findIndex(m=>m.name===form.name.trim());
       let mats;
-      if(ei>=0){const ex=prev.materials[ei];const oldTotal=Number(ex.totalCost||0);const newTotal=oldTotal+tc;const newQty=Number(ex.quantity)+qty;const newCpu=newQty>0?newTotal/newQty:cpu;mats=prev.materials.map((m,i)=>i===ei?{...m,quantity:newQty,totalCost:newTotal,costPerUnit:newCpu,costPer100:newCpu*100}:m);}
-      else mats=[...prev.materials,{...form,id:Date.now().toString(),costPerUnit:cpu,costPer100:cpu*100,totalCost:tc}];
-      return{...prev,materials:mats,purchases:[...prev.purchases,{...form,id:Date.now().toString(),costPerUnit:cpu,totalCost:tc,date:todayStr()}]};
+      if(ei>=0){
+        // RESTOCK: existing material — add qty, update price to new one
+        const ex=prev.materials[ei];
+        const mergedQty=Number(ex.quantity||0)+newQty;
+        // Use new price per unit (latest purchase price wins)
+        const finalCpu=newCpu>0?newCpu:Number(ex.costPerUnit||0);
+        mats=prev.materials.map((m,i)=>i===ei?{
+          ...m,
+          quantity:mergedQty,
+          costPerUnit:finalCpu,
+          costPer100:finalCpu*100,
+          totalCost:newTotalPrice>0?newTotalPrice:m.totalCost,
+        }:m);
+      } else {
+        // NEW material — add as permanent record
+        mats=[...prev.materials,{
+          id:Date.now().toString(),
+          name:form.name.trim(),
+          unit:form.unit,
+          minAlert:Number(form.minAlert||10),
+          quantity:newQty,
+          costPerUnit:newCpu,
+          costPer100:newCpu*100,
+          totalCost:newTotalPrice,
+        }];
+      }
+      return{
+        ...prev,
+        materials:mats,
+        purchases:[...prev.purchases,{
+          id:Date.now().toString(),
+          name:form.name.trim(),
+          unit:form.unit,
+          quantity:newQty,
+          costPerUnit:newCpu,
+          totalCost:newTotalPrice,
+          date:todayStr(),
+        }]
+      };
     });
     setForm(ef());setNameSug([]);setShowAdd(false);
   };
@@ -578,7 +658,7 @@ function Inventory({data,update,cur,T}){
           </div>
           <div><LB T={T}>تنبيه عند</LB><IN type="number" value={form.minAlert} onChange={e=>setForm(f=>({...f,minAlert:e.target.value}))} T={T}/></div>
         </div>
-        {data.materials.find(m=>m.name===form.name.trim())&&nameSug.length===0&&<div style={{marginTop:6,fontSize:11,color:T.green}}>✅ ستُضاف للمخزون الحالي لـ "{form.name}"</div>}
+        <MergeHint name={form.name} materials={data.materials} nameSug={nameSug} T={T}/>
         <button onClick={add} style={{...BTS(T.primary,T),width:"100%",marginTop:10}}>💾 تسجيل الشراء</button>
       </div>}
       {editMat&&<div style={{...CDS(T),marginBottom:12,border:`1px solid ${T.yellow}40`}}>
@@ -755,7 +835,12 @@ function Session({data,update,cur,hr,catIcon,T,timerSec,running,paused,setRunnin
 }
 
 function Monthly({data,cur,T}){
+  const[expanded,setExpanded]=useState({});
+  const toggleExp=m=>setExpanded(p=>({...p,[m]:!p[m]}));
+
+  // Build monthly data
   const monthly={};
+  const pdArr=d=>{if(!d)return 0;const p=d.split("/");if(p.length===3&&p[2].length===4)return new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`).getTime();return new Date(d).getTime()||0;};
   data.sales.forEach(s=>{
     if(!s.date)return;
     const p=s.date.split("/");
@@ -764,24 +849,150 @@ function Monthly({data,cur,T}){
     else if(p.length===3&&p[0].length===4)ym=`${p[0]}-${p[1].padStart(2,"0")}`;
     else ym=s.date.substring(0,7);
     if(!ym)return;
-    if(!monthly[ym])monthly[ym]={sales:0,profit:0,count:0};
-    monthly[ym].sales+=Number(s.total||0);monthly[ym].profit+=Number(s.totalProfit||0);monthly[ym].count+=Number(s.qty||1);
+    if(!monthly[ym])monthly[ym]={sales:0,profit:0,count:0,salesArr:[]};
+    monthly[ym].sales+=Number(s.total||0);
+    monthly[ym].profit+=Number(s.totalProfit||0);
+    monthly[ym].count+=Number(s.qty||1);
+    monthly[ym].salesArr.push(s);
   });
+
+  // Breakeven calc
+  const totalRevenue=data.sales.reduce((s,x)=>s+Number(x.total||0),0);
+  const totalMaterialCost=data.purchases.reduce((s,x)=>s+Number(x.totalCost||0),0);
+  const totalBazaarCost=data.bazaars.reduce((s,x)=>s+Number(x.totalCost||0),0);
+  const totalCosts=totalMaterialCost+totalBazaarCost;
+  const totalProfit=data.sales.reduce((s,x)=>s+Number(x.totalProfit||0),0);
+  const netAfterBazaar=totalProfit-totalBazaarCost;
+  const breakevenPct=totalCosts>0?Math.min(100,Math.round((totalRevenue/totalCosts)*100)):0;
+  const reached=netAfterBazaar>=0;
+
   const MONTH_AR=["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
   const ml=ym=>{if(!ym||!ym.includes("-"))return ym||"";const[y,m]=ym.split("-");const mi=parseInt(m);if(isNaN(mi)||mi<1||mi>12)return ym;return`${MONTH_AR[mi-1]} ${y}`;};
   const months=Object.keys(monthly).sort().reverse();
   const maxS=Math.max(...months.map(m=>monthly[m].sales),1);
+
   return(
     <div>
       <h2 style={{marginBottom:12,fontWeight:800}}>الإحصائيات 📅</h2>
-      {!months.length&&<div style={{textAlign:"center",padding:35,color:T.textFaint}}><div style={{fontSize:44}}>📅</div><div style={{marginTop:8}}>ما في بيانات بعد</div></div>}
-      {months.map(m=>{const d=monthly[m];const bw=Math.round((d.sales/maxS)*100);const ip=d.sales===maxS&&months.length>1;return(
-        <div key={m} style={{...CDS(T),marginBottom:9,border:ip?`1px solid ${T.green}50`:undefined}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}><div style={{fontWeight:700,fontSize:13}}>{ml(m)}{ip&&<span style={{fontSize:10,color:T.green,marginRight:7}}>🏆 ذروة</span>}</div><div style={{fontSize:13,color:T.green,fontWeight:700}}>{fmt(d.sales)} {cur}</div></div>
-          <div style={{background:T.separator,borderRadius:5,height:7,marginBottom:8,overflow:"hidden"}}><div style={{width:`${bw}%`,height:"100%",background:ip?T.green:T.primary,borderRadius:5}}/></div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:5}}><RW l="المبيعات" v={`${fmt(d.sales)} ${cur}`} T={T}/><RW l="الأرباح" v={`${fmt(Math.round(d.profit))} ${cur}`} c={T.blue} T={T}/><RW l="القطع" v={d.count} T={T}/></div>
+
+      {/* Breakeven Card */}
+      <div style={{...CDS(T),marginBottom:14,border:`1px solid ${reached?T.green+"50":T.yellow+"40"}`}}>
+        <div style={{fontWeight:800,fontSize:14,color:reached?T.green:T.yellow,marginBottom:10}}>
+          {reached?"✅ وصلتِ نقطة الصفر!":"⏳ في الطريق لنقطة الصفر"}
         </div>
-      );})}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:11}}>
+          <div style={{background:T.accentVeryFaint,borderRadius:10,padding:"9px",textAlign:"center"}}>
+            <div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>إجمالي الإيرادات</div>
+            <div style={{fontSize:14,fontWeight:800,color:T.green}}>{fmt(totalRevenue)} {cur}</div>
+          </div>
+          <div style={{background:T.accentVeryFaint,borderRadius:10,padding:"9px",textAlign:"center"}}>
+            <div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>إجمالي التكاليف</div>
+            <div style={{fontSize:14,fontWeight:800,color:T.red}}>{fmt(Math.round(totalCosts))} {cur}</div>
+          </div>
+          <div style={{background:T.accentVeryFaint,borderRadius:10,padding:"9px",textAlign:"center"}}>
+            <div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>مواد خام</div>
+            <div style={{fontSize:13,fontWeight:700,color:T.accent}}>{fmt(Math.round(totalMaterialCost))} {cur}</div>
+          </div>
+          <div style={{background:T.accentVeryFaint,borderRadius:10,padding:"9px",textAlign:"center"}}>
+            <div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>مصاريف بازارات</div>
+            <div style={{fontSize:13,fontWeight:700,color:T.accent}}>{fmt(Math.round(totalBazaarCost))} {cur}</div>
+          </div>
+        </div>
+        {/* Progress bar */}
+        <div style={{marginBottom:6}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
+            <span style={{color:T.textFaint}}>نسبة تغطية التكاليف</span>
+            <span style={{fontWeight:700,color:reached?T.green:T.yellow}}>{breakevenPct}%</span>
+          </div>
+          <div style={{background:T.separator,borderRadius:6,height:12,overflow:"hidden"}}>
+            <div style={{width:`${breakevenPct}%`,height:"100%",background:reached?T.green:`linear-gradient(90deg,${T.yellow},${T.primary})`,borderRadius:6,transition:"width 0.5s"}}/>
+          </div>
+        </div>
+        <div style={{fontSize:12,marginTop:8,padding:"8px 10px",background:reached?T.greenFaint:T.yellowFaint,borderRadius:9,fontWeight:600,color:reached?T.green:T.yellow,textAlign:"center"}}>
+          {reached
+            ? `🎉 ربحتِ ${fmt(Math.round(netAfterBazaar))} ${cur} فوق نقطة الصفر`
+            : `تحتاجين ${fmt(Math.round(totalCosts-totalRevenue))} ${cur} إضافية للوصول لنقطة الصفر`}
+        </div>
+      </div>
+
+      {!months.length&&<div style={{textAlign:"center",padding:35,color:T.textFaint}}><div style={{fontSize:44}}>📅</div><div style={{marginTop:8}}>ما في بيانات بعد</div></div>}
+      {months.map(m=>{
+        const d=monthly[m];
+        const bw=Math.round((d.sales/maxS)*100);
+        const ip=d.sales===maxS&&months.length>1;
+        const isExp=expanded[m];
+
+        // Top products this month
+        const pm={};
+        d.salesArr.forEach(s=>{
+          const id=s.productId||s.productName;
+          if(!pm[id])pm[id]={name:s.productName,qty:0,profit:0,dates:[]};
+          pm[id].qty+=Number(s.qty||1);pm[id].profit+=Number(s.totalProfit||0);
+          if(s.date)pm[id].dates.push(pdArr(s.date));
+        });
+        const topProds=Object.values(pm).sort((a,b)=>b.qty-a.qty).slice(0,3);
+        // Fastest sellout = most qty in shortest time
+        const fastSellout=Object.values(pm).filter(p=>p.qty>=2).sort((a,b)=>b.qty-a.qty).slice(0,3);
+        // Best bazaars this month — handle both date formats
+        const getYM=d=>{if(!d)return"";const p=d.split("/");if(p.length===3&&p[2].length===4)return`${p[2]}-${p[1].padStart(2,"0")}`;if(p.length===3&&p[0].length===4)return`${p[0]}-${p[1].padStart(2,"0")}`;if(d.length>=7)return d.substring(0,7);return"";};
+        const mBazaars=data.bazaars.filter(b=>{
+          if(!b.date)return false;
+          return getYM(b.date)===m||(()=>{
+            // Also try ISO date format (from date input type="date")
+            const bd=new Date(b.date);if(isNaN(bd))return false;
+            const bym=`${bd.getFullYear()}-${String(bd.getMonth()+1).padStart(2,"0")}`;
+            return bym===m;
+          })();
+        }).map(b=>{
+          const bs=data.sales.filter(s=>s.bazaarId===b.id);
+          const rev=bs.reduce((s,x)=>s+Number(x.total||0),0);
+          const profit=bs.reduce((s,x)=>s+Number(x.totalProfit||0),0)-Number(b.totalCost||0);
+          return{name:b.name,profit,rev};
+        }).sort((a,b)=>b.profit-a.profit);
+
+        return(
+          <div key={m} style={{...CDS(T),marginBottom:9,border:ip?`1px solid ${T.green}50`:undefined}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
+              <div style={{fontWeight:700,fontSize:13}}>{ml(m)}{ip&&<span style={{fontSize:10,color:T.green,marginRight:7}}>🏆 ذروة</span>}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{fontSize:13,color:T.green,fontWeight:700}}>{fmt(d.sales)} {cur}</div>
+                <button onClick={()=>toggleExp(m)} style={{background:T.accentVeryFaint,border:`1px solid ${T.accentFaint}`,borderRadius:7,padding:"3px 8px",cursor:"pointer",color:T.textSub,fontFamily:"inherit",fontSize:11}}>{isExp?"↑":"↓ تفاصيل"}</button>
+              </div>
+            </div>
+            <div style={{background:T.separator,borderRadius:5,height:7,marginBottom:8,overflow:"hidden"}}><div style={{width:`${bw}%`,height:"100%",background:ip?T.green:T.primary,borderRadius:5}}/></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:5}}>
+              <RW l="المبيعات" v={`${fmt(d.sales)} ${cur}`} T={T}/>
+              <RW l="الأرباح" v={`${fmt(Math.round(d.profit))} ${cur}`} c={T.blue} T={T}/>
+              <RW l="القطع" v={d.count} T={T}/>
+            </div>
+            {isExp&&(
+              <div style={{marginTop:10,borderTop:`1px solid ${T.separator}`,paddingTop:10}}>
+                {topProds.length>0&&<div style={{marginBottom:10}}>
+                  <div style={{fontSize:11,color:T.accent,fontWeight:700,marginBottom:6}}>🥇 أكثر مبيعاً</div>
+                  {topProds.map((p,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12,borderBottom:`1px solid ${T.separator}`}}>
+                    <span>{i===0?"🥇":i===1?"🥈":"🥉"} {p.name}</span>
+                    <span style={{color:T.green,fontWeight:600}}>{p.qty} قطعة</span>
+                  </div>)}
+                </div>}
+                {fastSellout.length>0&&<div style={{marginBottom:10}}>
+                  <div style={{fontSize:11,color:T.yellow,fontWeight:700,marginBottom:6}}>⚡ الأكثر طلباً (ينخلص بسرعة)</div>
+                  {fastSellout.map((p,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12,borderBottom:`1px solid ${T.separator}`}}>
+                    <span>{p.name}</span>
+                    <span style={{color:T.yellow,fontWeight:600}}>{p.qty} قطعة</span>
+                  </div>)}
+                </div>}
+                {mBazaars.length>0&&<div>
+                  <div style={{fontSize:11,color:T.blue,fontWeight:700,marginBottom:6}}>🏪 أربح البازارات</div>
+                  {mBazaars.slice(0,3).map((b,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12,borderBottom:`1px solid ${T.separator}`}}>
+                    <span>{b.name}</span>
+                    <span style={{color:b.profit>=0?T.green:T.red,fontWeight:600}}>{fmt(Math.round(b.profit))} {cur}</span>
+                  </div>)}
+                </div>}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -821,7 +1032,7 @@ function AlertsPage({alerts,T}){
     </div>
   );
 }
-// eslint-disable-next-line no-unused-vars
+
 function Settings({data,update,T,ui,fScale,bScale}){
   const[rate,setRate]=useState(data.settings.hourlyRate);
   const[currency,setCurrency]=useState(data.settings.currency);
