@@ -100,6 +100,7 @@ export default function App(){
           </button>
         ))}
       </div>
+      // eslint-disable-next-line no-unused-vars
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.35}}@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-thumb{background:var(--primary);border-radius:3px}input,select,textarea{outline:none;font-size:16px!important;color:var(--text)!important;background:var(--inputBg)!important;border-color:var(--inputBorder)!important;}select option{background:${T.dark?"#0a0a1a":"#fff"};color:var(--text)}button:active{transform:scale(0.95)}h2{color:var(--accent)!important}`}</style>
     </div>
   );
