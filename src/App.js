@@ -121,6 +121,7 @@ function PricePreview({totalGiven,totalCost,totalItems,T,cur}){
 
 function BazaarMode({baz,data,update,T,cur,catIcon,cssVars,fScale,onExit}){
   const[phase,setPhase]=useState("sell");
+  // eslint-disable-next-line no-unused-vars
   const[selProduct,setSelProduct]=useState(null);
   const[cart,setCart]=useState([]);
   const[totalGiven,setTotalGiven]=useState("");
