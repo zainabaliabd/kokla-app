@@ -3,7 +3,7 @@ const THEMES={pinkDark:{name:"وردي داكن",icon:"🌸",dark:true,bg:"#1600
 const DEFAULT_CATEGORIES=[{key:"ميداليات",icon:"🏅"},{key:"ملابس",icon:"👗"},{key:"حقائب",icon:"👜"},{key:"إكسسوارات",icon:"💎"},{key:"ديكور بيت",icon:"🏠"},{key:"منتجات شعر",icon:"💇"}];
 const PRODUCT_STATUSES=["قيد العمل","مكتمل","مباع"];
 const MAIN_TABS=[{key:"home",label:"الرئيسية",icon:"⊞"},{key:"products",label:"المنتجات",icon:"🧶"},{key:"sales",label:"المبيعات",icon:"💰"},{key:"bazaars",label:"البازارات",icon:"🛍️"},{key:"orders",label:"طلبات",icon:"📋"}];
-const initialState={categories:DEFAULT_CATEGORIES,products:[],materials:[],purchases:[],bazaars:[],sales:[],sessions:[],customerOrders:[],settings:{hourlyRate:3000,currency:"د.ع"},ui:{theme:"pinkDark",fontSize:"medium",btnSize:"medium"}};
+const initialState={categories:DEFAULT_CATEGORIES,products:[],materials:[],purchases:[],bazaars:[],sales:[],sessions:[],customerOrders:[],productionLog:[],settings:{hourlyRate:3000,currency:"د.ع"},ui:{theme:"pinkDark",fontSize:"medium",btnSize:"medium"}};
 function loadData(){try{const s=localStorage.getItem("kokla_v7");return s?{...initialState,...JSON.parse(s)}:initialState;}catch{return initialState;}}
 function saveData(d){try{localStorage.setItem("kokla_v7",JSON.stringify(d));}catch{}}
 function fmt(n){return Number(n||0).toLocaleString("ar-IQ");}
@@ -121,7 +121,6 @@ function PricePreview({totalGiven,totalCost,totalItems,T,cur}){
 
 function BazaarMode({baz,data,update,T,cur,catIcon,cssVars,fScale,onExit}){
   const[phase,setPhase]=useState("sell");
-  // eslint-disable-next-line no-unused-vars
   const[selProduct,setSelProduct]=useState(null);
   const[cart,setCart]=useState([]);
   const[totalGiven,setTotalGiven]=useState("");
@@ -344,7 +343,22 @@ function Products({data,update,cur,hr,catIcon,T}){
         materials=materials.map((m,i)=>i===mi?{...m,quantity:Math.max(0,Number(m.quantity)-Number(u.qty||0)*qty)}:m);
       });
     }
-    return{...prev,materials,products:prev.products.map(p=>p.id===id?{...p,readyCount:(Number(p.readyCount)||0)+qty,status:"مكتمل"}:p)};
+    const ts=Date.now();
+    const prodEntry={
+      id:ts.toString(),
+      productId:id,
+      productName:prod?.name||id,
+      categoryKey:prod?.categoryKey||"",
+      qty,
+      date:new Date().toLocaleDateString("ar-IQ"),
+      createdAt:ts,
+    };
+    return{
+      ...prev,
+      materials,
+      products:prev.products.map(p=>p.id===id?{...p,readyCount:(Number(p.readyCount)||0)+qty,status:"مكتمل"}:p),
+      productionLog:[...(prev.productionLog||[]),prodEntry],
+    };
   });
   const del=id=>confirmDel("حذف هذا المنتج؟",()=>update(prev=>({...prev,products:prev.products.filter(p=>p.id!==id)})));
   const catKeys=["الكل",...new Set((data.categories||DEFAULT_CATEGORIES).map(ct=>ct.key))];
@@ -828,7 +842,12 @@ function Session({data,update,cur,hr,catIcon,T,timerSec,running,paused,setRunnin
           const newCalc=calcPriceFn(updatedLabor,Number(p.materialCost||0),p.targetProfit||30,p.discount||0,prev.settings.hourlyRate||3000);
           return{...p,readyCount:(Number(p.readyCount)||0)+addQty,status:addQty>0?"مكتمل":p.status,laborMinutes:updatedLabor,...newCalc,suggestedPrice:newCalc.suggested,discountedPrice:newCalc.discounted,totalCost:newCalc.totalCost,laborCost:newCalc.laborCost};
         }),
-        sessions:[...(prev.sessions||[]),{id:Date.now().toString(),date:todayStr(),prods:activeSession.prods,totalMins,minsPerPc,totalPcs,note:extraNote}]
+        sessions:[...(prev.sessions||[]),{id:Date.now().toString(),date:todayStr(),prods:activeSession.prods,totalMins,minsPerPc,totalPcs,note:extraNote}],
+        productionLog:[...(prev.productionLog||[]),...selProds.filter(sel=>addToReady.includes(sel.id)).map(sel=>{
+          const prod=prev.products.find(p=>p.id===sel.id);
+          const ts=Date.now();
+          return{id:ts+"-"+sel.id,productId:sel.id,productName:prod?.name||sel.id,categoryKey:prod?.categoryKey||"",qty:Number(sel.qty||1),date:todayStr(),createdAt:ts};
+        })],
       };
     });
     setTimerSec(0);setActiveSession(null);setSelProds([]);setExtraNote("");setAddToReady([]);setStep(1);
@@ -924,168 +943,585 @@ function Session({data,update,cur,hr,catIcon,T,timerSec,running,paused,setRunnin
 }
 
 function Monthly({data,cur,T}){
-  const[expanded,setExpanded]=useState({});
-  const toggleExp=m=>setExpanded(p=>({...p,[m]:!p[m]}));
+  const[filterPeriod,setFilterPeriod]=useState("all");
+  const[filterCat,setFilterCat]=useState("all");
+  const[customFrom,setCustomFrom]=useState("");
+  const[customTo,setCustomTo]=useState("");
+  const[activeSection,setActiveSection]=useState("summary");
+  const[calMonth,setCalMonth]=useState(()=>{const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");});
+  const[calDay,setCalDay]=useState(null);
 
-  // Build monthly data
-  const monthly={};
-  const pdArr=d=>{if(!d)return 0;const p=d.split("/");if(p.length===3&&p[2].length===4)return new Date(p[2]+"-"+p[1].padStart(2,"0")+"-"+p[0].padStart(2,"0")).getTime();return new Date(d).getTime()||0;};
-  data.sales.forEach(s=>{
-    if(!s.date)return;
-    const p=s.date.split("/");
-    let ym="";
-    if(p.length===3&&p[2].length===4)ym=p[2]+"-"+p[1].padStart(2,"0");
-    else if(p.length===3&&p[0].length===4)ym=p[0]+"-"+p[1].padStart(2,"0");
-    else ym=s.date.substring(0,7);
-    if(!ym)return;
-    if(!monthly[ym])monthly[ym]={sales:0,profit:0,count:0,salesArr:[]};
-    monthly[ym].sales+=Number(s.total||0);
-    monthly[ym].profit+=Number(s.totalProfit||0);
-    monthly[ym].count+=Number(s.qty||1);
-    monthly[ym].salesArr.push(s);
+  // ── Date helpers ──
+  // Robust date parser - handles DD/MM/YYYY, MM/DD/YYYY, YYYY-MM-DD, timestamps
+  const parseAnyDate=d=>{
+    if(!d)return 0;
+    if(typeof d==="number")return d;
+    const s=String(d).trim();
+    if(!s)return 0;
+    // Pure number = timestamp
+    const n=Number(s);
+    if(!isNaN(n)&&n>1000000000000)return n;
+    // DD/MM/YYYY (Arabic locale format)
+    const slashParts=s.split("/");
+    if(slashParts.length===3){
+      const [a,b,yr]=slashParts;
+      if(yr.length===4){
+        // DD/MM/YYYY
+        const t=new Date(yr+"-"+b.padStart(2,"0")+"-"+a.padStart(2,"0")).getTime();
+        if(!isNaN(t)&&t>0)return t;
+      }
+      if(a.length===4){
+        // YYYY/MM/DD
+        const t=new Date(a+"-"+b.padStart(2,"0")+"-"+yr.padStart(2,"0")).getTime();
+        if(!isNaN(t)&&t>0)return t;
+      }
+    }
+    // YYYY-MM-DD or ISO
+    if(s.includes("-")){
+      const t=new Date(s).getTime();
+      if(!isNaN(t)&&t>0)return t;
+    }
+    // Last resort
+    const t2=new Date(s).getTime();
+    return isNaN(t2)?0:t2;
+  };
+  const toYMD=ts=>{if(!ts)return"";const d=new Date(ts);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
+  const toYM=ts=>{if(!ts)return"";const d=new Date(ts);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");};
+  const parseDateStr=parseAnyDate;
+  const pdArr=parseAnyDate;
+
+  // ── Filter range ──
+  const now=Date.now();
+  const rangeStart=(()=>{
+    if(filterPeriod==="today"){const d=new Date();d.setHours(0,0,0,0);return d.getTime();}
+    if(filterPeriod==="week")return now-7*864e5;
+    if(filterPeriod==="month"){const d=new Date();d.setDate(1);d.setHours(0,0,0,0);return d.getTime();}
+    if(filterPeriod==="year"){const d=new Date();d.setMonth(0,1);d.setHours(0,0,0,0);return d.getTime();}
+    if(filterPeriod==="custom"&&customFrom)return new Date(customFrom).getTime();
+    return 0;
+  })();
+  const rangeEnd=(()=>{
+    if(filterPeriod==="custom"&&customTo)return new Date(customTo).getTime()+864e5;
+    return now+864e5;
+  })();
+
+  const inRange=ts=>{
+    if(filterPeriod==="all")return true; // show everything when "all" selected
+    if(!ts)return false;
+    return ts>=rangeStart&&ts<=rangeEnd;
+  };
+
+  // ── Filter sales ──
+  const filteredSales=data.sales.filter(s=>{
+    const ts=parseDateStr(s.date);
+    if(!inRange(ts))return false;
+    if(filterCat!=="all"){const p=(data.products||[]).find(x=>x.id===s.productId);if((p?.categoryKey||"")!==filterCat)return false;}
+    return true;
   });
 
-  // Breakeven calc
-  const totalRevenue=data.sales.reduce((s,x)=>s+Number(x.total||0),0);
-  const totalMaterialCost=data.purchases.reduce((s,x)=>s+Number(x.totalCost||0),0);
-  const totalBazaarCost=data.bazaars.reduce((s,x)=>s+Number(x.totalCost||0),0);
-  const totalCosts=totalMaterialCost+totalBazaarCost;
-  const totalProfit=data.sales.reduce((s,x)=>s+Number(x.totalProfit||0),0);
-  const netAfterBazaar=totalProfit-totalBazaarCost;
-  const breakevenPct=totalCosts>0?Math.min(100,Math.round((totalRevenue/totalCosts)*100)):0;
-  const reached=netAfterBazaar>=0;
+  // ── Filter sessions ──
+  const filteredSessions=(data.sessions||[]).filter(s=>{
+    if(filterPeriod==="all")return true;
+    const ts=parseAnyDate(s.date||s.createdAt||0);
+    return inRange(ts);
+  });
+
+  // ── Sales stats ──
+  const totalRev=filteredSales.reduce((a,s)=>a+Number(s.total||0),0);
+  const totalProfit=filteredSales.reduce((a,s)=>a+Number(s.totalProfit||0),0);
+  const totalQty=filteredSales.reduce((a,s)=>a+Number(s.qty||1),0);
+  const avgOrder=filteredSales.length>0?totalRev/filteredSales.length:0;
+
+  // Sales by channel
+  const byChannel={};
+  filteredSales.forEach(s=>{const ch=s.channel||"غير محدد";if(!byChannel[ch])byChannel[ch]=0;byChannel[ch]+=Number(s.total||0);});
+
+  // Sales by day
+  const byDay={};
+  filteredSales.forEach(s=>{const d=toYMD(parseDateStr(s.date));if(!d)return;if(!byDay[d])byDay[d]=0;byDay[d]+=Number(s.total||0);});
+  const topDay=Object.entries(byDay).sort((a,b)=>b[1]-a[1])[0];
+
+  // Sales by month
+  const byMonth={};
+  filteredSales.forEach(s=>{const m=toYM(parseDateStr(s.date));if(!m)return;if(!byMonth[m])byMonth[m]={rev:0,profit:0,qty:0,arr:[]};byMonth[m].rev+=Number(s.total||0);byMonth[m].profit+=Number(s.totalProfit||0);byMonth[m].qty+=Number(s.qty||1);byMonth[m].arr.push(s);});
+  const months=Object.keys(byMonth).sort().reverse();
+  const topMonth=Object.entries(byMonth).sort((a,b)=>b[1].rev-a[1].rev)[0];
+  const maxRev=Math.max(...months.map(m=>byMonth[m].rev),1);
+
+  // ── Production stats from productionLog (primary) ──
+  // productionLog is populated by addReady and saveSession
+  const allProdLog=(data.productionLog||[]);
+  // Filter by date range
+  const filteredProdLog=allProdLog.filter(entry=>{
+    if(filterPeriod==="all")return true;
+    const ts=parseAnyDate(entry.createdAt||entry.date||0);
+    return inRange(ts);
+  });
+  const prodByDay={};
+  const prodByMonth={};
+  let totalProduced=0;
+  let totalProdMinutes=0;
+  const prodByProd={};
+  filteredProdLog.forEach(entry=>{
+    const ts=parseAnyDate(entry.createdAt||entry.date||0);
+    const d=ts?toYMD(ts):"";
+    const m=ts?toYM(ts):"";
+    const qty=Number(entry.qty||0);
+    totalProduced+=qty;
+    if(d){if(!prodByDay[d])prodByDay[d]=0;prodByDay[d]+=qty;}
+    if(m){if(!prodByMonth[m])prodByMonth[m]=0;prodByMonth[m]+=qty;}
+    // By product
+    const pid=entry.productId;
+    const prod=(data.products||[]).find(p=>p.id===pid);
+    if(!prodByProd[pid])prodByProd[pid]={name:entry.productName||pid,qty:0,mins:0,lastDate:entry.date||"",catKey:entry.categoryKey||""};
+    prodByProd[pid].qty+=qty;
+    prodByProd[pid].mins+=Number(prod?.laborMinutes||0)*qty;
+    if(entry.date)prodByProd[pid].lastDate=entry.date;
+  });
+  // Estimate time from product laborMinutes
+  totalProdMinutes=Object.values(prodByProd).reduce((a,pp)=>a+pp.mins,0);
+  // Fallback: if no productionLog entries, estimate from readyCount+soldCount
+  const usingFallback=filteredProdLog.length===0;
+  if(usingFallback){
+    (data.products||[]).forEach(p=>{
+      const qty=Number(p.readyCount||0)+Number(p.soldCount||0);
+      totalProduced+=qty;
+      totalProdMinutes+=Number(p.laborMinutes||0)*qty;
+    });
+  }
+  const prodDays=Object.keys(prodByDay).filter(d=>prodByDay[d]>0);
+  const topProdDay=Object.entries(prodByDay).sort((a,b)=>b[1]-a[1])[0];
+  const topProdMonth=Object.entries(prodByMonth).sort((a,b)=>b[1]-a[1])[0];
+  const avgProdPerDay=prodDays.length>0?totalProduced/prodDays.length:0;
+
+  // ── Product stats ──
+  const prodStats={};
+  (data.products||[]).forEach(p=>{
+    prodStats[p.id]={name:p.name,catKey:p.categoryKey,readyCount:Number(p.readyCount||0),soldCount:Number(p.soldCount||0),laborMins:Number(p.laborMinutes||0),suggestedPrice:Number(p.suggestedPrice||0),totalCost:Number(p.totalCost||0)};
+  });
+  const prodArr2=Object.values(prodStats);
+  // Use separate copies to avoid mutation bug
+  const mostProduced=[...prodArr2].sort((a,b)=>b.readyCount-a.readyCount)[0];
+  const mostSold=[...prodArr2].sort((a,b)=>b.soldCount-a.soldCount)[0];
+  const mostProfitable=[...prodArr2].sort((a,b)=>(b.suggestedPrice-b.totalCost)-(a.suggestedPrice-a.totalCost))[0];
+  const mostTime=[...prodArr2].sort((a,b)=>b.laborMins-a.laborMins)[0];
+
+  // ── Inventory stats ──
+  const totalInventoryVal=data.materials.reduce((a,m)=>a+Number(m.costPerUnit||0)*Number(m.quantity||0),0);
+  const lowStock=data.materials.filter(m=>Number(m.quantity||0)<=Number(m.minAlert||0)&&(m.itemType||"consumable")!=="asset");
+  const assets=data.materials.filter(m=>(m.itemType||"consumable")==="asset");
+  const consumables=data.materials.filter(m=>(m.itemType||"consumable")!=="asset");
+
+  // Breakeven
+  const totalRevAll=data.sales.reduce((a,s)=>a+Number(s.total||0),0);
+  const totalMatCost=data.purchases.reduce((a,p)=>a+Number(p.totalCost||0),0);
+  const totalBazCost=data.bazaars.reduce((a,b)=>a+Number(b.totalCost||0),0);
+  const totalCosts=totalMatCost+totalBazCost;
+  const netProfit=data.sales.reduce((a,s)=>a+Number(s.totalProfit||0),0)-totalBazCost;
+  const breakevenPct=totalCosts>0?Math.min(100,Math.round((totalRevAll/totalCosts)*100)):0;
+  const breakevenReached=netProfit>=0;
+
+  // ── Calendar data ──
+  // Calendar reads from productionLog
+  const calByDay={};
+  (data.productionLog||[]).filter(entry=>{
+    const ts=parseAnyDate(entry.createdAt||entry.date||0);
+    return ts&&toYM(ts)===calMonth;
+  }).forEach(entry=>{
+    const ts=parseAnyDate(entry.createdAt||entry.date||0);
+    const d=toYMD(ts);
+    if(!d)return;
+    if(!calByDay[d])calByDay[d]=[];
+    calByDay[d].push({name:entry.productName||entry.productId,qty:Number(entry.qty||1)});
+  });
+
+  // Calendar grid
+  const calYear=parseInt(calMonth.split("-")[0]);
+  const calMonthIdx=parseInt(calMonth.split("-")[1])-1;
+  const firstDay=new Date(calYear,calMonthIdx,1).getDay();
+  const daysInMonth=new Date(calYear,calMonthIdx+1,0).getDate();
 
   const MONTH_AR=["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
-  const ml=ym=>{if(!ym||!ym.includes("-"))return ym||"";const parts=ym.split("-");if(parts.length<2)return ym;const mi=parseInt(parts[1]);if(isNaN(mi)||mi<1||mi>12)return ym;return MONTH_AR[mi-1]+" "+parts[0];};
-  const months=Object.keys(monthly).sort().reverse();
-  const maxS=Math.max(...months.map(m=>monthly[m].sales),1);
+  const ml=ym=>{if(!ym||!ym.includes("-"))return ym||"";const pts=ym.split("-");const mi=parseInt(pts[1]);if(isNaN(mi)||mi<1||mi>12)return ym;return MONTH_AR[mi-1]+" "+pts[0];};
+
+  const sections=[
+    {key:"summary",label:"ملخص",icon:"📊"},
+    {key:"sales",label:"المبيعات",icon:"💰"},
+    {key:"production",label:"الإنتاج",icon:"🏭"},
+    {key:"calendar",label:"التقويم",icon:"📅"},
+    {key:"products",label:"المنتجات",icon:"🧶"},
+    {key:"inventory",label:"المخزون",icon:"📦"},
+    {key:"compare",label:"مقارنة",icon:"⚖️"},
+  ];
+  const cats=["all",...new Set((data.categories||DEFAULT_CATEGORIES).map(c=>c.key))];
 
   return(
     <div>
-      <h2 style={{marginBottom:12,fontWeight:800}}>الإحصائيات 📅</h2>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <h2 style={{margin:0,fontWeight:800}}>الإحصائيات 📊</h2>
+      </div>
 
-      {/* Breakeven Card */}
-      <div style={{...CDS(T),marginBottom:14,border:`1px solid ${reached?T.green+"50":T.yellow+"40"}`}}>
-        <div style={{fontWeight:800,fontSize:14,color:reached?T.green:T.yellow,marginBottom:10}}>
-          {reached?"✅ وصلتِ نقطة الصفر!":"⏳ في الطريق لنقطة الصفر"}
+      {/* Filters */}
+      <div style={{...CDS(T),marginBottom:12}}>
+        <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
+          {[{v:"all",l:"الكل"},{v:"today",l:"اليوم"},{v:"week",l:"الأسبوع"},{v:"month",l:"هذا الشهر"},{v:"year",l:"هذه السنة"},{v:"custom",l:"مخصص"}].map(f=>(
+            <button key={f.v} onClick={()=>setFilterPeriod(f.v)} style={{...BTS(filterPeriod===f.v?T.primary:T.card,T),fontSize:10,padding:"4px 9px",border:filterPeriod===f.v?"none":"1px solid "+T.cardBorder}}>{f.l}</button>
+          ))}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:11}}>
-          <div style={{background:T.accentVeryFaint,borderRadius:10,padding:"9px",textAlign:"center"}}>
-            <div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>إجمالي الإيرادات</div>
-            <div style={{fontSize:14,fontWeight:800,color:T.green}}>{fmt(totalRevenue)} {cur}</div>
+        {filterPeriod==="custom"&&(
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:7}}>
+            <div><LB T={T}>من</LB><IN type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} T={T}/></div>
+            <div><LB T={T}>إلى</LB><IN type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} T={T}/></div>
           </div>
-          <div style={{background:T.accentVeryFaint,borderRadius:10,padding:"9px",textAlign:"center"}}>
-            <div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>إجمالي التكاليف</div>
-            <div style={{fontSize:14,fontWeight:800,color:T.red}}>{fmt(Math.round(totalCosts))} {cur}</div>
-          </div>
-          <div style={{background:T.accentVeryFaint,borderRadius:10,padding:"9px",textAlign:"center"}}>
-            <div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>مواد خام</div>
-            <div style={{fontSize:13,fontWeight:700,color:T.accent}}>{fmt(Math.round(totalMaterialCost))} {cur}</div>
-          </div>
-          <div style={{background:T.accentVeryFaint,borderRadius:10,padding:"9px",textAlign:"center"}}>
-            <div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>مصاريف بازارات</div>
-            <div style={{fontSize:13,fontWeight:700,color:T.accent}}>{fmt(Math.round(totalBazaarCost))} {cur}</div>
-          </div>
-        </div>
-        {/* Progress bar */}
-        <div style={{marginBottom:6}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
-            <span style={{color:T.textFaint}}>نسبة تغطية التكاليف</span>
-            <span style={{fontWeight:700,color:reached?T.green:T.yellow}}>{breakevenPct}%</span>
-          </div>
-          <div style={{background:T.separator,borderRadius:6,height:12,overflow:"hidden"}}>
-            <div style={{width:`${breakevenPct}%`,height:"100%",background:reached?T.green:`linear-gradient(90deg,${T.yellow},${T.primary})`,borderRadius:6,transition:"width 0.5s"}}/>
-          </div>
-        </div>
-        <div style={{fontSize:12,marginTop:8,padding:"8px 10px",background:reached?T.greenFaint:T.yellowFaint,borderRadius:9,fontWeight:600,color:reached?T.green:T.yellow,textAlign:"center"}}>
-          {reached
-            ? `🎉 ربحتِ ${fmt(Math.round(netAfterBazaar))} ${cur} فوق نقطة الصفر`
-            : `تحتاجين ${fmt(Math.round(totalCosts-totalRevenue))} ${cur} إضافية للوصول لنقطة الصفر`}
+        )}
+        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+          {cats.map(k=>{const c=(data.categories||DEFAULT_CATEGORIES).find(x=>x.key===k);return(
+            <button key={k} onClick={()=>setFilterCat(k)} style={{...BTS(filterCat===k?T.blue:T.card,T),fontSize:10,padding:"3px 8px",border:filterCat===k?"none":"1px solid "+T.cardBorder}}>{c?c.icon+" "+k:"الكل"}</button>
+          );})}
         </div>
       </div>
 
-      {!months.length&&<div style={{textAlign:"center",padding:35,color:T.textFaint}}><div style={{fontSize:44}}>📅</div><div style={{marginTop:8}}>ما في بيانات بعد</div></div>}
-      {months.map(m=>{
-        const d=monthly[m];
-        const bw=Math.round((d.sales/maxS)*100);
-        const ip=d.sales===maxS&&months.length>1;
-        const isExp=expanded[m];
+      {/* Section nav */}
+      <div style={{display:"flex",overflowX:"auto",gap:5,marginBottom:12,paddingBottom:2}}>
+        {sections.map(s=>(
+          <button key={s.key} onClick={()=>setActiveSection(s.key)} style={{...BTS(activeSection===s.key?T.primary:T.card,T),fontSize:11,padding:"6px 11px",whiteSpace:"nowrap",border:activeSection===s.key?"none":"1px solid "+T.cardBorder,flexShrink:0}}>{s.icon} {s.label}</button>
+        ))}
+      </div>
 
-        // Top products this month
-        const pm={};
-        d.salesArr.forEach(s=>{
-          const id=s.productId||s.productName;
-          if(!pm[id])pm[id]={name:s.productName,qty:0,profit:0,dates:[]};
-          pm[id].qty+=Number(s.qty||1);pm[id].profit+=Number(s.totalProfit||0);
-          if(s.date)pm[id].dates.push(pdArr(s.date));
-        });
-        const topProds=Object.values(pm).sort((a,b)=>b.qty-a.qty).slice(0,3);
-        // Fastest sellout = most qty in shortest time
-        const fastSellout=Object.values(pm).filter(p=>p.qty>=2).sort((a,b)=>b.qty-a.qty).slice(0,3);
-        // Best bazaars this month — handle both date formats
-        const getYM=d=>{if(!d)return"";const p=d.split("/");if(p.length===3&&p[2].length===4)return p[2]+"-"+p[1].padStart(2,"0");if(p.length===3&&p[0].length===4)return p[0]+"-"+p[1].padStart(2,"0");if(d.length>=7)return d.substring(0,7);return"";};
-        const mBazaars=data.bazaars.filter(b=>{
-          if(!b.date)return false;
-          // Handle ISO "2025-07-15" format from <input type="date">
-          if(b.date.includes("-")&&b.date.length>=7){
-            const isoYm=b.date.substring(0,7); // "2025-07"
-            if(isoYm===m)return true;
-          }
-          // Handle Arabic "15/7/2025" format
-          return getYM(b.date)===m;
-        }).map(b=>{
-          const bs=data.sales.filter(s=>s.bazaarId===b.id);
-          const rev=bs.reduce((s,x)=>s+Number(x.total||0),0);
-          const profit=bs.reduce((s,x)=>s+Number(x.totalProfit||0),0)-Number(b.totalCost||0);
-          return{name:b.name,profit,rev};
-        }).sort((a,b)=>b.profit-a.profit);
+      {/* ── SUMMARY ── */}
+      {activeSection==="summary"&&(
+        <div>
+          {/* Breakeven */}
+          <div style={{...CDS(T),marginBottom:10,border:"1px solid "+(breakevenReached?T.green+"50":T.yellow+"40")}}>
+            <div style={{fontWeight:800,fontSize:14,color:breakevenReached?T.green:T.yellow,marginBottom:9}}>
+              {breakevenReached?"✅ تجاوزتِ نقطة الصفر!":"⏳ في الطريق لنقطة الصفر"}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:10}}>
+              <div style={{background:T.accentVeryFaint,borderRadius:9,padding:"8px",textAlign:"center"}}><div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>إجمالي الإيرادات</div><div style={{fontSize:13,fontWeight:800,color:T.green}}>{fmt(totalRevAll)} {cur}</div></div>
+              <div style={{background:T.accentVeryFaint,borderRadius:9,padding:"8px",textAlign:"center"}}><div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>إجمالي التكاليف</div><div style={{fontSize:13,fontWeight:800,color:T.red}}>{fmt(Math.round(totalCosts))} {cur}</div></div>
+              <div style={{background:T.accentVeryFaint,borderRadius:9,padding:"8px",textAlign:"center"}}><div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>صافي الربح</div><div style={{fontSize:13,fontWeight:800,color:netProfit>=0?T.green:T.red}}>{fmt(Math.round(netProfit))} {cur}</div></div>
+            </div>
+            <div style={{background:T.separator,borderRadius:6,height:12,overflow:"hidden",marginBottom:6}}>
+              <div style={{width:breakevenPct+"%",height:"100%",background:breakevenReached?T.green:"linear-gradient(90deg,"+T.yellow+","+T.primary+")",borderRadius:6}}/>
+            </div>
+            <div style={{fontSize:11,color:T.textFaint,textAlign:"center"}}>{breakevenPct}% من التكاليف مغطاة</div>
+          </div>
+          {/* Quick stats */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+            {[
+              {icon:"💰",label:"إجمالي المبيعات",val:fmt(Math.round(totalRevAll))+" "+cur,c:T.green},
+              {icon:"📈",label:"إجمالي الأرباح",val:fmt(Math.round(data.sales.reduce((a,s)=>a+Number(s.totalProfit||0),0)))+" "+cur,c:T.blue},
+              {icon:"🧾",label:"عدد الطلبات",val:data.sales.length+" طلب",c:T.accent},
+              {icon:"📦",label:"قطع مباعة",val:data.sales.reduce((a,s)=>a+Number(s.qty||1),0)+" قطعة",c:T.yellow},
+              {icon:"🏭",label:"قطع منتجة",val:totalProduced+" قطعة",c:T.primary},
+              {icon:"📦",label:"جاهز للبيع",val:(data.products||[]).reduce((a,p)=>a+Number(p.readyCount||0),0)+" قطعة",c:T.textSub},
+            ].map(s=>(
+              <div key={s.label} style={{background:T.card,border:"1px solid "+T.cardBorder,borderRadius:12,padding:"11px"}}>
+                <div style={{fontSize:16,marginBottom:3}}>{s.icon}</div>
+                <div style={{fontSize:14,fontWeight:800,color:s.c}}>{s.val}</div>
+                <div style={{fontSize:10,color:T.textFaint,marginTop:2}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+          {topDay&&<div style={{...CDS(T),marginBottom:8}}><RW l="🌟 أفضل يوم مبيعات" v={topDay[0]+" — "+fmt(topDay[1])+" "+cur} c={T.yellow} b T={T}/></div>}
+          {topMonth&&<div style={{...CDS(T),marginBottom:8}}><RW l="📅 أفضل شهر مبيعات" v={ml(topMonth[0])+" — "+fmt(topMonth[1].rev)+" "+cur} c={T.green} b T={T}/></div>}
+          {topProdDay&&<div style={{...CDS(T)}}><RW l="🏭 أكثر يوم إنتاجاً" v={topProdDay[0]+" — "+topProdDay[1]+" قطعة"} c={T.blue} b T={T}/></div>}
+        </div>
+      )}
 
-        return(
-          <div key={m} style={{...CDS(T),marginBottom:9,border:ip?`1px solid ${T.green}50`:undefined}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
-              <div style={{fontWeight:700,fontSize:13}}>{ml(m)}{ip&&<span style={{fontSize:10,color:T.green,marginRight:7}}>🏆 ذروة</span>}</div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <div style={{fontSize:13,color:T.green,fontWeight:700}}>{fmt(d.sales)} {cur}</div>
-                <button onClick={()=>toggleExp(m)} style={{background:T.accentVeryFaint,border:`1px solid ${T.accentFaint}`,borderRadius:7,padding:"3px 8px",cursor:"pointer",color:T.textSub,fontFamily:"inherit",fontSize:11}}>{isExp?"↑":"↓ تفاصيل"}</button>
+      {/* ── SALES ── */}
+      {activeSection==="sales"&&(
+        <div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:12}}>
+            <StatCard icon="💰" label="الإيرادات" val={fmt(totalRev)+" "+cur} c={T.green} T={T}/>
+            <StatCard icon="📈" label="الأرباح" val={fmt(Math.round(totalProfit))+" "+cur} c={T.blue} T={T}/>
+            <StatCard icon="🧾" label="عدد الطلبات" val={filteredSales.length} c={T.accent} T={T}/>
+            <StatCard icon="📦" label="قطع مباعة" val={totalQty} c={T.yellow} T={T}/>
+            <StatCard icon="🧮" label="متوسط الطلب" val={fmt(Math.round(avgOrder))+" "+cur} c={T.primary} T={T}/>
+          </div>
+          {/* By channel */}
+          {Object.keys(byChannel).length>0&&(
+            <div style={{...CDS(T),marginBottom:10}}>
+              <div style={{fontWeight:700,fontSize:13,color:T.accent,marginBottom:8}}>📡 المبيعات حسب القناة</div>
+              {Object.entries(byChannel).sort((a,b)=>b[1]-a[1]).map(([ch,rev])=>(
+                <div key={ch} style={{marginBottom:6}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
+                    <span style={{fontWeight:600}}>{ch}</span>
+                    <span style={{color:T.green,fontWeight:700}}>{fmt(rev)} {cur}</span>
+                  </div>
+                  <div style={{background:T.separator,borderRadius:4,height:6,overflow:"hidden"}}>
+                    <div style={{width:Math.round(rev/Math.max(...Object.values(byChannel))*100)+"%",height:"100%",background:T.primary,borderRadius:4}}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Monthly breakdown */}
+          <div style={{...CDS(T)}}>
+            <div style={{fontWeight:700,fontSize:13,color:T.accent,marginBottom:8}}>📅 المبيعات الشهرية</div>
+            {!months.length&&<div style={{color:T.textFaint,fontSize:12,textAlign:"center",padding:16}}>ما في بيانات</div>}
+            {months.map(m=>{const d=byMonth[m];const bw=Math.round(d.rev/maxRev*100);const ip=d.rev===Math.max(...months.map(mm=>byMonth[mm].rev));return(
+              <div key={m} style={{marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
+                  <span style={{fontWeight:ip?700:400,color:ip?T.green:T.text}}>{ml(m)}{ip&&" 🏆"}</span>
+                  <span style={{color:T.green,fontWeight:700}}>{fmt(d.rev)} {cur}</span>
+                </div>
+                <div style={{background:T.separator,borderRadius:4,height:7,overflow:"hidden",marginBottom:3}}>
+                  <div style={{width:bw+"%",height:"100%",background:ip?T.green:T.primary,borderRadius:4}}/>
+                </div>
+                <div style={{display:"flex",gap:10,fontSize:10,color:T.textFaint}}>
+                  <span>ربح: {fmt(Math.round(d.profit))} {cur}</span>
+                  <span>{d.qty} قطعة</span>
+                  <span>{d.arr.length} طلب</span>
+                </div>
+              </div>
+            );})}
+          </div>
+        </div>
+      )}
+
+      {/* ── PRODUCTION ── */}
+      {activeSection==="production"&&(
+        <div>
+          {usingFallback&&totalProduced>0&&<div style={{...CDS(T),marginBottom:9,border:"1px solid "+T.yellow+"40",fontSize:11,color:T.yellow,padding:"8px 12px"}}>💡 لا توجد جلسات إنتاج مسجلة — الأرقام محسوبة من readyCount+soldCount للمنتجات</div>}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:12}}>
+            <StatCard icon="🏭" label="إجمالي الإنتاج" val={totalProduced+" قطعة"} c={T.primary} T={T}/>
+            <StatCard icon="📆" label="أيام الإنتاج" val={prodDays.length>0?prodDays.length+" يوم":"—"} c={T.blue} T={T}/>
+            <StatCard icon="⚡" label="متوسط/يوم" val={avgProdPerDay>0?avgProdPerDay.toFixed(1)+" قطعة":"—"} c={T.yellow} T={T}/>
+            <StatCard icon="⏱" label="إجمالي الوقت" val={totalProdMinutes>0?Math.round(totalProdMinutes/60)+" ساعة":"—"} c={T.accent} T={T}/>
+          </div>
+          {topProdDay&&<div style={{...CDS(T),marginBottom:9,border:"1px solid "+T.green+"40"}}><div style={{fontWeight:700,fontSize:13,color:T.green,marginBottom:5}}>🏆 أكثر يوم إنتاجاً</div><div style={{fontSize:14,fontWeight:800}}>{topProdDay[0]} — {topProdDay[1]} قطعة</div></div>}
+          {topProdMonth&&<div style={{...CDS(T),marginBottom:9,border:"1px solid "+T.blue+"40"}}><div style={{fontWeight:700,fontSize:13,color:T.blue,marginBottom:5}}>📅 أكثر شهر إنتاجاً</div><div style={{fontSize:14,fontWeight:800}}>{ml(topProdMonth[0])} — {topProdMonth[1]} قطعة</div></div>}
+          {/* Production by product */}
+          {Object.keys(prodByProd).length>0&&(
+            <div style={{...CDS(T)}}>
+              <div style={{fontWeight:700,fontSize:13,color:T.accent,marginBottom:9}}>🧶 الإنتاج حسب المنتج</div>
+              {Object.values(prodByProd).sort((a,b)=>b.qty-a.qty).map((p,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+T.separator,fontSize:12}}>
+                  <div>
+                    <div style={{fontWeight:600}}>{p.name}</div>
+                    <div style={{fontSize:10,color:T.textFaint}}>آخر إنتاج: {p.lastDate} · {p.mins>0?Math.round(p.mins/p.qty)+" د/قطعة":""}</div>
+                  </div>
+                  <div style={{textAlign:"left"}}>
+                    <div style={{fontWeight:700,color:T.primary}}>{p.qty} قطعة</div>
+                    {p.mins>0&&<div style={{fontSize:10,color:T.textFaint}}>{Math.round(p.mins/60)} ساعة</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {totalProduced===0&&<div style={{textAlign:"center",padding:35,color:T.textFaint}}><div style={{fontSize:40}}>🏭</div><div style={{marginTop:8}}>ما في بيانات إنتاج بعد</div></div>}
+        </div>
+      )}
+
+      {/* ── CALENDAR ── */}
+      {activeSection==="calendar"&&(
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <button onClick={()=>{const d=new Date(calYear,calMonthIdx-1,1);setCalMonth(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"));setCalDay(null);}} style={{...BTS(T.card,T),padding:"6px 10px",border:"1px solid "+T.cardBorder}}>←</button>
+            <div style={{fontWeight:700,fontSize:14,color:T.accent}}>{MONTH_AR[calMonthIdx]} {calYear}</div>
+            <button onClick={()=>{const d=new Date(calYear,calMonthIdx+1,1);setCalMonth(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"));setCalDay(null);}} style={{...BTS(T.card,T),padding:"6px 10px",border:"1px solid "+T.cardBorder}}>→</button>
+          </div>
+          {/* Calendar grid */}
+          <div style={{...CDS(T),marginBottom:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:5,textAlign:"center",fontSize:9,color:T.textFaint}}>
+              {["أح","إث","ثل","أر","خم","جم","سب"].map(d=><div key={d} style={{padding:"2px 0"}}>{d}</div>)}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+              {Array.from({length:firstDay}).map((_,i)=><div key={"e"+i}/>)}
+              {Array.from({length:daysInMonth}).map((_,i)=>{
+                const day=i+1;
+                const dateStr=calYear+"-"+String(calMonthIdx+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");
+                const dayData=calByDay[dateStr];
+                const total=dayData?dayData.reduce((a,x)=>a+x.qty,0):0;
+                const isSelected=calDay===dateStr;
+                const isToday=dateStr===toYMD(Date.now());
+                return(
+                  <div key={day} onClick={()=>setCalDay(isSelected?null:dateStr)} style={{
+                    padding:"4px 2px",borderRadius:6,textAlign:"center",cursor:"pointer",
+                    background:isSelected?T.primary:total>0?T.greenFaint:T.accentVeryFaint,
+                    border:"1px solid "+(isSelected?T.primary:isToday?T.yellow:total>0?T.green+"40":T.separator),
+                    minHeight:36,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+                  }}>
+                    <div style={{fontSize:10,fontWeight:isToday?700:400,color:isSelected?"#fff":isToday?T.yellow:T.text}}>{day}</div>
+                    {total>0&&<div style={{fontSize:8,fontWeight:700,color:isSelected?"#fff":T.green}}>{total}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {/* Day detail */}
+          {calDay&&calByDay[calDay]&&(
+            <div style={{...CDS(T),border:"1px solid "+T.green+"40"}}>
+              <div style={{fontWeight:700,fontSize:13,color:T.green,marginBottom:8}}>📦 إنتاج {calDay}</div>
+              {calByDay[calDay].map((p,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid "+T.separator,fontSize:12}}>
+                  <span style={{fontWeight:600}}>{p.name}</span>
+                  <span style={{color:T.primary,fontWeight:700}}>{p.qty} قطعة</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {calDay&&!calByDay[calDay]&&<div style={{...CDS(T),textAlign:"center",color:T.textFaint,padding:20,fontSize:12}}>لا يوجد إنتاج في هذا اليوم</div>}
+        </div>
+      )}
+
+      {/* ── PRODUCTS ── */}
+      {activeSection==="products"&&(
+        <div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+            {mostSold&&<div style={{...CDS(T),border:"1px solid "+T.green+"40"}}><div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>🥇 الأكثر مبيعاً</div><div style={{fontWeight:700,fontSize:13}}>{mostSold.name}</div><div style={{fontSize:11,color:T.green}}>{mostSold.soldCount} قطعة</div></div>}
+            {mostProduced&&<div style={{...CDS(T),border:"1px solid "+T.blue+"40"}}><div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>🏭 الأكثر إنتاجاً</div><div style={{fontWeight:700,fontSize:13}}>{mostProduced.name}</div><div style={{fontSize:11,color:T.blue}}>{mostProduced.readyCount} قطعة</div></div>}
+            {mostProfitable&&<div style={{...CDS(T),border:"1px solid "+T.yellow+"40"}}><div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>💰 الأكثر ربحاً</div><div style={{fontWeight:700,fontSize:13}}>{mostProfitable.name}</div><div style={{fontSize:11,color:T.yellow}}>{fmt(Math.round(mostProfitable.suggestedPrice-mostProfitable.totalCost))} {cur}/قطعة</div></div>}
+            {mostTime&&<div style={{...CDS(T),border:"1px solid "+T.accent+"40"}}><div style={{fontSize:10,color:T.textFaint,marginBottom:2}}>⏱ الأطول تصنيعاً</div><div style={{fontWeight:700,fontSize:13}}>{mostTime.name}</div><div style={{fontSize:11,color:T.accent}}>{mostTime.laborMins} دقيقة</div></div>}
+          </div>
+          {/* All products table */}
+          <div style={CDS(T)}>
+            <div style={{fontWeight:700,fontSize:13,color:T.accent,marginBottom:9}}>📋 كل المنتجات</div>
+            {(data.products||[]).map(p=>{
+              const totalPd=Number(p.readyCount||0)+Number(p.soldCount||0);
+              const soldPct=totalPd>0?Math.round(Number(p.soldCount||0)/totalPd*100):0;
+              return(
+                <div key={p.id} style={{marginBottom:9,paddingBottom:9,borderBottom:"1px solid "+T.separator}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                    <span style={{fontWeight:600,fontSize:12}}>{p.name}</span>
+                    <span style={{fontSize:10,color:T.textFaint}}>{soldPct}% مبيع</span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:5,fontSize:10,color:T.textFaint,marginBottom:4}}>
+                    <span>منتج: {totalPd}</span>
+                    <span style={{color:T.green}}>مباع: {p.soldCount||0}</span>
+                    <span style={{color:T.blue}}>جاهز: {p.readyCount||0}</span>
+                  </div>
+                  <div style={{background:T.separator,borderRadius:3,height:4,overflow:"hidden"}}>
+                    <div style={{width:soldPct+"%",height:"100%",background:T.green,borderRadius:3}}/>
+                  </div>
+                </div>
+              );
+            })}
+            {!data.products?.length&&<div style={{color:T.textFaint,textAlign:"center",padding:20,fontSize:12}}>ما في منتجات</div>}
+          </div>
+        </div>
+      )}
+
+      {/* ── INVENTORY ── */}
+      {activeSection==="inventory"&&(
+        <div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+            <StatCard icon="📦" label="عدد المواد" val={consumables.length} c={T.primary} T={T}/>
+            <StatCard icon="♻️" label="الأصول" val={assets.length} c={T.blue} T={T}/>
+            <StatCard icon="💰" label="قيمة المخزون" val={fmt(Math.round(totalInventoryVal))+" "+cur} c={T.green} T={T}/>
+            <StatCard icon="⚠️" label="تحتاج ريستوك" val={lowStock.length} c={lowStock.length>0?T.red:T.green} T={T}/>
+          </div>
+          {lowStock.length>0&&(
+            <div style={{...CDS(T),marginBottom:10,border:"1px solid "+T.red+"40"}}>
+              <div style={{fontWeight:700,color:T.red,marginBottom:8,fontSize:13}}>⚠️ مواد تحتاج ريستوك</div>
+              {lowStock.map(m=>(
+                <div key={m.id} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid "+T.separator,fontSize:12}}>
+                  <span style={{fontWeight:600}}>{m.name}</span>
+                  <span style={{color:T.red}}>{fmt(m.quantity)} {m.unit} متبقي</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {assets.length>0&&(
+            <div style={{...CDS(T),marginBottom:10,border:"1px solid "+T.blue+"40"}}>
+              <div style={{fontWeight:700,color:T.blue,marginBottom:8,fontSize:13}}>♻️ الأصول (لا تُستهلك)</div>
+              {assets.map(m=>(
+                <div key={m.id} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid "+T.separator,fontSize:12}}>
+                  <span style={{fontWeight:600}}>{m.name}</span>
+                  <div style={{textAlign:"left"}}>
+                    <div style={{color:T.blue}}>{fmt(m.quantity)} {m.unit}</div>
+                    <div style={{fontSize:10,color:T.textFaint}}>{fmt(Math.round(m.totalCost||0))} {cur}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={CDS(T)}>
+            <div style={{fontWeight:700,color:T.accent,marginBottom:8,fontSize:13}}>🧵 المواد المستهلكة</div>
+            {consumables.sort((a,b)=>Number(b.quantity||0)-Number(a.quantity||0)).map(m=>{
+              const val=Number(m.costPerUnit||0)*Number(m.quantity||0);
+              return(
+                <div key={m.id} style={{marginBottom:7,paddingBottom:7,borderBottom:"1px solid "+T.separator}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}>
+                    <span style={{fontWeight:600}}>{m.name}</span>
+                    <span style={{color:T.green,fontWeight:700}}>{fmt(m.quantity)} {m.unit}</span>
+                  </div>
+                  <div style={{fontSize:10,color:T.textFaint}}>قيمة: {fmt(Math.round(val))} {cur} · {fmt(Math.round(m.costPerUnit||0))}/{m.unit}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── COMPARE ── */}
+      {activeSection==="compare"&&(
+        <div>
+          <div style={{...CDS(T),marginBottom:12,border:"1px solid "+T.primary+"40"}}>
+            <div style={{fontWeight:800,fontSize:14,color:T.accent,marginBottom:12}}>⚖️ الإنتاج مقابل المبيعات</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12,textAlign:"center"}}>
+              <div style={{background:T.blueFaint,borderRadius:10,padding:"10px"}}>
+                <div style={{fontSize:22,fontWeight:800,color:T.blue}}>{totalProduced}</div>
+                <div style={{fontSize:10,color:T.textFaint,marginTop:2}}>🏭 منتج</div>
+              </div>
+              <div style={{background:T.greenFaint,borderRadius:10,padding:"10px"}}>
+                <div style={{fontSize:22,fontWeight:800,color:T.green}}>{totalQty}</div>
+                <div style={{fontSize:10,color:T.textFaint,marginTop:2}}>💰 مباع</div>
+              </div>
+              <div style={{background:T.accentVeryFaint,borderRadius:10,padding:"10px"}}>
+                <div style={{fontSize:22,fontWeight:800,color:T.accent}}>{Math.max(0,totalProduced-totalQty)}</div>
+                <div style={{fontSize:10,color:T.textFaint,marginTop:2}}>📦 جاهز</div>
               </div>
             </div>
-            <div style={{background:T.separator,borderRadius:5,height:7,marginBottom:8,overflow:"hidden"}}><div style={{width:`${bw}%`,height:"100%",background:ip?T.green:T.primary,borderRadius:5}}/></div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:5}}>
-              <RW l="المبيعات" v={fmt(d.sales)+" "+cur} T={T}/>
-              <RW l="الأرباح" v={fmt(Math.round(d.profit))+" "+cur} c={T.blue} T={T}/>
-              <RW l="القطع" v={d.count} T={T}/>
-            </div>
-            {isExp&&(
-              <div style={{marginTop:10,borderTop:`1px solid ${T.separator}`,paddingTop:10}}>
-                {topProds.length>0&&<div style={{marginBottom:10}}>
-                  <div style={{fontSize:11,color:T.accent,fontWeight:700,marginBottom:6}}>🥇 أكثر مبيعاً</div>
-                  {topProds.map((p,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12,borderBottom:`1px solid ${T.separator}`}}>
-                    <span>{i===0?"🥇":i===1?"🥈":"🥉"} {p.name}</span>
-                    <span style={{color:T.green,fontWeight:600}}>{p.qty} قطعة</span>
-                  </div>)}
-                </div>}
-                {fastSellout.length>0&&<div style={{marginBottom:10}}>
-                  <div style={{fontSize:11,color:T.yellow,fontWeight:700,marginBottom:6}}>⚡ الأكثر طلباً (ينخلص بسرعة)</div>
-                  {fastSellout.map((p,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12,borderBottom:`1px solid ${T.separator}`}}>
-                    <span>{p.name}</span>
-                    <span style={{color:T.yellow,fontWeight:600}}>{p.qty} قطعة</span>
-                  </div>)}
-                </div>}
-                {mBazaars.length>0&&<div>
-                  <div style={{fontSize:11,color:T.blue,fontWeight:700,marginBottom:6}}>🏪 أربح البازارات</div>
-                  {mBazaars.slice(0,3).map((b,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12,borderBottom:`1px solid ${T.separator}`}}>
-                    <span>{b.name}</span>
-                    <span style={{color:b.profit>=0?T.green:T.red,fontWeight:600}}>{fmt(Math.round(b.profit))} {cur}</span>
-                  </div>)}
-                </div>}
+            {totalProduced>0&&(
+              <div>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}><span style={{color:T.textFaint}}>نسبة البيع من الإنتاج</span><span style={{fontWeight:700}}>{totalProduced>0?Math.round(totalQty/totalProduced*100):0}%</span></div>
+                <div style={{background:T.separator,borderRadius:5,height:10,overflow:"hidden"}}>
+                  <div style={{width:Math.min(100,totalProduced>0?Math.round(totalQty/totalProduced*100):0)+"%",height:"100%",background:T.green,borderRadius:5}}/>
+                </div>
               </div>
             )}
           </div>
-        );
-      })}
+          {/* By product comparison */}
+          <div style={CDS(T)}>
+            <div style={{fontWeight:700,fontSize:13,color:T.accent,marginBottom:9}}>📊 تفصيل لكل منتج</div>
+            {(data.products||[]).filter(p=>Number(p.readyCount||0)+Number(p.soldCount||0)>0).map(p=>{
+              const prod2=Number(p.readyCount||0)+Number(p.soldCount||0);
+              const sold2=Number(p.soldCount||0);
+              const pct2=prod2>0?Math.round(sold2/prod2*100):0;
+              return(
+                <div key={p.id} style={{marginBottom:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
+                    <span style={{fontWeight:600}}>{p.name}</span>
+                    <span style={{color:T.textFaint,fontSize:10}}>{pct2}% مباع</span>
+                  </div>
+                  <div style={{display:"flex",gap:6,fontSize:10,color:T.textFaint,marginBottom:3}}>
+                    <span>منتج: {prod2}</span><span style={{color:T.green}}>مباع: {sold2}</span><span style={{color:T.blue}}>جاهز: {p.readyCount||0}</span>
+                  </div>
+                  <div style={{background:T.separator,borderRadius:4,height:6,overflow:"hidden"}}>
+                    <div style={{width:pct2+"%",height:"100%",background:T.green,borderRadius:4}}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+function StatCard({icon,label,val,c,T}){
+  return(
+    <div style={{background:T.card,border:"1px solid "+T.cardBorder,borderRadius:12,padding:"11px"}}>
+      <div style={{fontSize:16,marginBottom:3}}>{icon}</div>
+      <div style={{fontSize:14,fontWeight:800,color:c||T.text}}>{val}</div>
+      <div style={{fontSize:10,color:T.textFaint,marginTop:2}}>{label}</div>
+    </div>
+  );
+}
+
 
 function CustomerOrders({data,update,T}){
   const[form,setForm]=useState({text:"",type:"طلب زبون",priority:"عادي"});
@@ -1137,7 +1573,7 @@ function Settings({data,update,T,ui,fScale,bScale}){
   const delCat=key=>setCats(c=>c.filter(x=>x.key!==key));
   const exportData=(label="backup")=>{const b=new Blob([JSON.stringify({...data,_exportedAt:new Date().toISOString(),_device:label},null,2)],{type:"application/json"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=`kokla_${label}_${todayStr().replace(/\//g,"-")}.json`;a.click();URL.revokeObjectURL(u);};
   const mergeArr=(c,i)=>{if(!Array.isArray(i))return c;const ids=new Set((c||[]).map(x=>x.id));return[...(c||[]),...i.filter(x=>x.id&&!ids.has(x.id))];};
-  const handleImport=e=>{const file=e.target.files[0];if(!file)return;setMergeStatus(null);const r=new FileReader();r.onload=ev=>{try{const inc=JSON.parse(ev.target.result);if(!inc||typeof inc!=="object"){setMergeStatus({error:"الملف غير صالح"});return;}const merged={...data,products:mergeArr(data.products,inc.products),materials:mergeArr(data.materials,inc.materials),purchases:mergeArr(data.purchases,inc.purchases),bazaars:mergeArr(data.bazaars,inc.bazaars),sales:mergeArr(data.sales,inc.sales),sessions:mergeArr(data.sessions,inc.sessions),customerOrders:mergeArr(data.customerOrders,inc.customerOrders)};const added={products:merged.products.length-data.products.length,sales:merged.sales.length-data.sales.length,bazaars:merged.bazaars.length-data.bazaars.length,materials:merged.materials.length-data.materials.length};update(()=>merged);setMergeStatus({added,total:Object.values(added).reduce((s,v)=>s+v,0)});}catch(err){setMergeStatus({error:"خطأ: "+err.message});}e.target.value="";};r.readAsText(file);};
+  const handleImport=e=>{const file=e.target.files[0];if(!file)return;setMergeStatus(null);const r=new FileReader();r.onload=ev=>{try{const inc=JSON.parse(ev.target.result);if(!inc||typeof inc!=="object"){setMergeStatus({error:"الملف غير صالح"});return;}const merged={...data,products:mergeArr(data.products,inc.products),materials:mergeArr(data.materials,inc.materials),purchases:mergeArr(data.purchases,inc.purchases),bazaars:mergeArr(data.bazaars,inc.bazaars),sales:mergeArr(data.sales,inc.sales),sessions:mergeArr(data.sessions,inc.sessions),customerOrders:mergeArr(data.customerOrders,inc.customerOrders),productionLog:mergeArr(data.productionLog||[],inc.productionLog||[])};const added={products:merged.products.length-data.products.length,sales:merged.sales.length-data.sales.length,bazaars:merged.bazaars.length-data.bazaars.length,materials:merged.materials.length-data.materials.length};update(()=>merged);setMergeStatus({added,total:Object.values(added).reduce((s,v)=>s+v,0)});}catch(err){setMergeStatus({error:"خطأ: "+err.message});}e.target.value="";};r.readAsText(file);};
   const downloadProductList=()=>{
     const prods=data.products||[];
     const rows=prods.map((p,i)=>{
