@@ -990,6 +990,7 @@ function Monthly({data,cur,T}){
   const toYMD=ts=>{if(!ts)return"";const d=new Date(ts);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
   const toYM=ts=>{if(!ts)return"";const d=new Date(ts);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");};
   const parseDateStr=parseAnyDate;
+  // eslint-disable-next-line no-unused-vars
   const pdArr=parseAnyDate;
 
   // ── Filter range ──
@@ -1022,6 +1023,7 @@ function Monthly({data,cur,T}){
   });
 
   // ── Filter sessions ──
+  // eslint-disable-next-line no-unused-vars
   const filteredSessions=(data.sessions||[]).filter(s=>{
     if(filterPeriod==="all")return true;
     const ts=parseAnyDate(s.date||s.createdAt||0);
